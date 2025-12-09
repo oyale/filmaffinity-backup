@@ -1,42 +1,35 @@
 name: tests
 
 on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
   workflow_dispatch:  # allow manual trigger
-  schedule:  # run on Fridays 00h00
-    - cron: '0 0 * * 5'
 
 jobs:
-  main_job:
+  test:
     runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        python-version: ["3.9", "3.10", "3.11", "3.12", "3.13"]
+
     steps:
       - name: Checkout
-        uses: actions/checkout@v3
+        uses: actions/checkout@v4
 
-      - name: Run tests
-        id: main_task
-        run: |
-          pip install -r requirements.txt
-          python tests.py
+      - name: Set up Python ${{ matrix.python-version }}
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python-version }}
+          cache: 'pip'
 
-      # Based on: https://www.softwaretester.blog/detecting-github-workflow-job-run-status-changes
-      - name: Check last job status
-        id: lastJobStatus
-        if: always()
+      - name: Install dependencies
         run: |
-          LAST_JOB_STATUS=$(gh run list --workflow main.yml | grep -oh "completed.*" | head -1 | awk '{print $2}')
-          echo "::set-output name=status::$LAST_JOB_STATUS"
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }} 
+          python -m pip install --upgrade pip
+          pip install -e ".[dev]"
 
-      # Only send email the first time the workflow fails
-      # (ie. job fails and the previous job run was successful)
-      # Otherwise you would receive an email in each of the subsequent failures
-      - name: Send email
-        if: always() &&  steps.main_task.outcome == 'failure' && steps.lastJobStatus.outputs.status == 'success'
+      - name: Run tests with pytest
         run: |
-          curl -s https://gist.githubusercontent.com/IgnacioHeredia/5f8fd2fc7d56763e4060c7b8fc8e0212/raw/3b5915cf3b8e0fd3c67b7ef7a019175116f0c367/send_email.py | \
-          python - \
-          --from_user ${{secrets.FROM_MAIL_USERNAME}} \
-          --from_pwd ${{secrets.FROM_MAIL_PASSWORD}} \
-          --to_user ${{secrets.TO_MAIL_USERNAME}} \
-          --subject "⚠ Failed Github workflow: filmaffinity-backup"                 
+          pytest --tb=short -v
