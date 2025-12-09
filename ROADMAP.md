@@ -33,7 +33,8 @@
 
 * [ ] Add CONTRIBUTING.md
 * [ ] Add CHANGELOG.md
-* [ ] Add issue/PR templates for GitHub
+* [x] Add issue/PR templates for GitHub
+* [x] Add GitHub Projects integration
 
 ---
 
@@ -155,6 +156,24 @@
 
 ---
 
+## 📊 GitHub Projects Integration
+
+This roadmap is integrated with GitHub Projects for better tracking and collaboration:
+
+- **Project Board**: Track progress on roadmap items in real-time
+- **Issue Templates**: Use structured templates for bugs, features, and roadmap items
+- **Automation**: Issues with `roadmap`, `bug`, or `enhancement` labels are automatically added to the project
+- **Views**: Multiple views for tracking by status, version, priority, and component
+
+**Getting Started:**
+1. Check the [Issue Templates](https://github.com/oyale/filmaffinity-backup/issues/new/choose)
+2. View the [Project Board](https://github.com/oyale/filmaffinity-backup/projects) (once configured)
+3. Read the [GitHub Projects Guide](.github/GITHUB_PROJECTS.md)
+
+---
+
 ## Contributing
 
 Have an idea? Open an [issue](https://github.com/oyale/filmaffinity-backup/issues) or submit a PR!
+
+See our [GitHub Projects Guide](.github/GITHUB_PROJECTS.md) for details on how we track and organize work.

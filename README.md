@@ -18,8 +18,9 @@ Backup your [FilmAffinity](https://www.filmaffinity.com/) ratings and lists to C
 8. [Configuration File](#configuration-file)
 9. [Session Persistence](#session-persistence)
 10. [Troubleshooting](#troubleshooting)
-11. [License](#license)
-12. [Acknowledgments](#acknowledgments)
+11. [Contributing](#contributing)
+12. [License](#license)
+13. [Acknowledgments](#acknowledgments)
 
 ---
 
@@ -443,6 +444,18 @@ Session state includes:
   ```
 
 * **WebDriver issues**: Ensure your browser and WebDriver versions are compatible. The script uses webdriver-manager to auto-download the correct driver.
+
+## Contributing
+
+We welcome contributions! Here's how you can help:
+
+* **Report bugs**: Use our [bug report template](https://github.com/oyale/filmaffinity-backup/issues/new?template=bug_report.yml)
+* **Request features**: Use our [feature request template](https://github.com/oyale/filmaffinity-backup/issues/new?template=feature_request.yml)
+* **Check the roadmap**: See [ROADMAP.md](ROADMAP.md) for planned features
+* **Track progress**: View the [GitHub Projects board](https://github.com/oyale/filmaffinity-backup/projects) to see what's being worked on
+* **Submit PRs**: Contributions are always welcome!
+
+For more details, see our [GitHub Projects Guide](.github/GITHUB_PROJECTS.md).
 
 ## License
 

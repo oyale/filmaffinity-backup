@@ -1,0 +1,86 @@
+name: 🗺️ Roadmap Item
+description: Create an issue for a specific roadmap item
+title: "[Roadmap]: "
+labels: ["roadmap"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        This template is for tracking items from the [ROADMAP](https://github.com/oyale/filmaffinity-backup/blob/main/ROADMAP.md).
+
+  - type: dropdown
+    id: version
+    attributes:
+      label: Roadmap Version
+      description: Which version is this item part of?
+      options:
+        - v1.1.0 - Polish & Stability
+        - v1.2.0 - Developer Experience
+        - v1.3.0 - Feature Enhancements
+        - v1.4.0 - User Experience
+        - v2.0.0 - Platform Expansion
+        - Known Issues / Technical Debt
+    validations:
+      required: true
+
+  - type: dropdown
+    id: category
+    attributes:
+      label: Category
+      description: What category does this item fall under?
+      options:
+        - Bug Fixes
+        - Improvements
+        - Documentation
+        - Code Quality
+        - CI/CD
+        - Packaging
+        - FilmAffinity Backup
+        - IMDb Uploader
+        - CLI Improvements
+        - Configuration
+        - Reporting
+        - New Platforms
+        - Architecture
+        - Advanced Features
+        - Other
+    validations:
+      required: true
+
+  - type: textarea
+    id: description
+    attributes:
+      label: Description
+      description: Describe the roadmap item in detail
+      placeholder: What needs to be done?
+    validations:
+      required: true
+
+  - type: textarea
+    id: acceptance
+    attributes:
+      label: Acceptance Criteria
+      description: What are the criteria for considering this item complete?
+      placeholder: |
+        - [ ] Criterion 1
+        - [ ] Criterion 2
+    validations:
+      required: false
+
+  - type: textarea
+    id: implementation
+    attributes:
+      label: Implementation Notes
+      description: Any technical details or implementation notes
+      placeholder: Technical details...
+    validations:
+      required: false
+
+  - type: textarea
+    id: dependencies
+    attributes:
+      label: Dependencies
+      description: Does this item depend on other roadmap items or issues?
+      placeholder: Depends on #123
+    validations:
+      required: false
