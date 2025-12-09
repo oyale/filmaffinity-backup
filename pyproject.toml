@@ -1,0 +1,82 @@
+[build-system]
+requires = ["setuptools>=61.0", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "filmaffinity-backup"
+version = "1.0.0"
+description = "Backup FilmAffinity data to CSV and upload ratings to IMDb"
+readme = "README.md"
+license = {text = "AGPL-3.0-or-later"}
+authors = [
+    {name = "Ignacio Heredia"},
+    {name = "Pelayo García"}
+]
+requires-python = ">=3.9"
+classifiers = [
+    "Development Status :: 4 - Beta",
+    "Environment :: Console",
+    "Intended Audience :: End Users/Desktop",
+    "License :: OSI Approved :: GNU Affero General Public License v3 or later (AGPLv3+)",
+    "Operating System :: OS Independent",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.9",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
+    "Topic :: Multimedia :: Video",
+    "Topic :: Utilities",
+]
+
+dependencies = [
+    "beautifulsoup4>=4.9.0",
+    "pandas>=1.3.0",
+    "requests>=2.25.0",
+    "rich>=10.0.0",
+    "typer>=0.4.0",
+]
+
+[project.optional-dependencies]
+imdb = [
+    "selenium>=4.0.0",
+    "webdriver-manager>=3.5.0",
+    "cinemagoer>=2022.12.27",
+]
+dev = [
+    "pytest>=7.0.0",
+    "pytest-cov>=3.0.0",
+]
+all = [
+    "filmaffinity-backup[imdb,dev]",
+]
+
+[project.scripts]
+fa-backup = "filmaffinity.cli:main"
+fa-upload = "imdb_uploader.cli:main"
+
+[project.urls]
+Homepage = "https://github.com/oyale/filmaffinity-backup"
+Repository = "https://github.com/oyale/filmaffinity-backup"
+Issues = "https://github.com/oyale/filmaffinity-backup/issues"
+
+[tool.setuptools.packages.find]
+include = ["filmaffinity*", "imdb_uploader*"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+python_files = ["test_*.py"]
+python_classes = ["Test*"]
+python_functions = ["test_*"]
+markers = [
+    "integration: marks tests as integration tests (require network access)",
+]
+addopts = "-v --tb=short -m 'not integration'"
+
+[tool.ruff]
+line-length = 100
+target-version = "py39"
+
+[tool.ruff.lint]
+select = ["E", "F", "W", "I", "N", "UP"]
+ignore = ["E501"]  # Line too long (handled by formatter)
