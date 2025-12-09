@@ -9,6 +9,10 @@ on:
 jobs:
   add-to-project:
     runs-on: ubuntu-latest
+    permissions:
+      issues: read
+      pull-requests: read
+      contents: read
     steps:
       - name: Add issue or PR to project
         uses: actions/add-to-project@v0.5.0
