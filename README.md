@@ -37,6 +37,7 @@ Backup your [FilmAffinity](https://www.filmaffinity.com/) ratings and lists to C
 ## Features
 
 * **Backup FilmAffinity data** - Export watched movies and custom lists to CSV
+* **Export to Letterboxd** - Generate Letterboxd-compatible CSV for easy import
 * **Upload to IMDb** - Transfer your ratings to IMDb using Selenium automation
 * **English title support** - Use English version of FilmAffinity for better IMDb matching
 * **Resume support** - Continue interrupted sessions
@@ -147,6 +148,24 @@ Your data will be saved to the `./data/{user_id}/` folder.
 | `--resume` | Resume an interrupted session, skip already downloaded lists/watched |
 | `--lang` | Language for FilmAffinity (`es` or `en`). Default: `en` |
 | `--data-dir` | Directory to save CSV files (default: `./data`) |
+| `--format` | Export format: `csv` (default) or `letterboxd` |
+
+### Letterboxd Export
+
+Export your FilmAffinity ratings to Letterboxd-compatible CSV format:
+
+```bash
+# Backup with Letterboxd export
+fa-backup YOUR_USER_ID --format letterboxd
+```
+
+This creates additional `*_letterboxd.csv` files alongside the standard CSV files. These can be directly imported into Letterboxd at https://letterboxd.com/import/.
+
+The Letterboxd CSV includes:
+- **Title** - Original title (English) when available, otherwise local title
+- **Year** - Release year
+- **Rating10** - Your rating on 1-10 scale
+- **WatchedDate** - Left empty (FilmAffinity doesn't track this)
 
 ### Language Option (`--lang`)
 

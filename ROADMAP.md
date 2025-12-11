@@ -70,6 +70,7 @@
 ### FilmAffinity Backup
 
 * [ ] Export to JSON format (in addition to CSV)
+* [x] Export to Letterboxd format
 * [ ] Add `--filter` option (by year, rating, genre)
 * [ ] Add `--since` option for incremental backups
 * [ ] Support for TV series (not just movies)
@@ -77,7 +78,6 @@
 
 ### IMDb Uploader
 
-* [ ] Add Letterboxd export support (alternative to IMDb)
 * [ ] Add Trakt.tv export support
 * [ ] Headless mode improvements (better CAPTCHA handling)
 * [ ] Add `--preview` to show what would be uploaded
