@@ -99,6 +99,7 @@ from .config import (
     create_default_config,
     SessionState,
     retry_on_http_error,
+    file_lock,
 )
 from .prompts import (
     beep,

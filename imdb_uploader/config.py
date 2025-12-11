@@ -3,10 +3,26 @@
 from __future__ import annotations
 
 import json
+import os
+import tempfile
 import time
+from contextlib import contextmanager
 from functools import wraps
 from pathlib import Path
-from typing import Any, Callable, Optional, TypeVar
+from typing import Any, Callable, Generator, Optional, TypeVar
+
+# Import file locking - fcntl on Unix, msvcrt on Windows
+try:
+    import fcntl
+    HAS_FCNTL = True
+except ImportError:
+    HAS_FCNTL = False
+
+try:
+    import msvcrt
+    HAS_MSVCRT = True
+except ImportError:
+    HAS_MSVCRT = False
 
 from .constants import DEFAULT_CONFIG
 
@@ -17,6 +33,7 @@ __all__ = [
     'create_default_config',
     'SessionState',
     'retry_on_http_error',
+    'file_lock',
 ]
 
 # =============================================================================
@@ -83,6 +100,73 @@ def create_default_config(config_path: str) -> None:
 
 
 # =============================================================================
+# File Locking Utilities
+# =============================================================================
+
+@contextmanager
+def file_lock(lock_path: Path, timeout: float = 10.0) -> Generator[None, None, None]:
+    """Context manager for cross-platform file locking.
+
+    Uses fcntl on Unix systems and msvcrt on Windows.
+    Creates a separate lock file to avoid issues with the main file.
+
+    Args:
+        lock_path: Path to the lock file to create/use.
+        timeout: Maximum time to wait for lock (seconds).
+
+    Raises:
+        TimeoutError: If lock cannot be acquired within timeout.
+        IOError: If locking is not supported and timeout is exceeded.
+    """
+    lock_file = lock_path.with_suffix('.lock')
+    lock_file.parent.mkdir(parents=True, exist_ok=True)
+
+    start_time = time.time()
+    lock_fd = None
+
+    try:
+        # Open or create lock file
+        lock_fd = open(lock_file, 'w')
+
+        while True:
+            try:
+                if HAS_FCNTL:
+                    # Unix: non-blocking exclusive lock
+                    fcntl.flock(lock_fd.fileno(), fcntl.LOCK_EX | fcntl.LOCK_NB)
+                    break
+                elif HAS_MSVCRT:
+                    # Windows: lock the first byte
+                    msvcrt.locking(lock_fd.fileno(), msvcrt.LK_NBLCK, 1)
+                    break
+                else:
+                    # No locking available - proceed with warning
+                    break
+            except (IOError, OSError):
+                # Lock is held by another process
+                if time.time() - start_time > timeout:
+                    raise TimeoutError(
+                        f"Could not acquire lock on {lock_file} within {timeout}s"
+                    )
+                time.sleep(0.1)
+
+        yield
+
+    finally:
+        if lock_fd is not None:
+            try:
+                if HAS_FCNTL:
+                    fcntl.flock(lock_fd.fileno(), fcntl.LOCK_UN)
+                elif HAS_MSVCRT:
+                    try:
+                        msvcrt.locking(lock_fd.fileno(), msvcrt.LK_UNLCK, 1)
+                    except OSError:
+                        pass
+            except (IOError, OSError):
+                pass
+            lock_fd.close()
+
+
+# =============================================================================
 # Session State Persistence
 # =============================================================================
 
@@ -94,6 +178,10 @@ class SessionState:
     - Current position (index)
     - Statistics
     - List of processed movie titles (to detect duplicates)
+
+    Thread-safety:
+    - Uses file locking to prevent concurrent access
+    - Uses atomic writes to prevent data corruption
     """
 
     def __init__(self, session_file: str = '.upload_imdb_session.json'):
@@ -105,30 +193,70 @@ class SessionState:
         self.skipped_items: list[dict] = []
 
     def load(self) -> bool:
-        """Load session state from file.
+        """Load session state from file with file locking.
+
+        Uses file locking to prevent concurrent access from multiple processes.
+        Also cleans up any orphaned temp files from previous crashes.
 
         Returns:
             True if session was loaded, False if no session file exists.
         """
+        # Clean up orphaned temp files from previous crashes
+        self._cleanup_orphaned_temp_files()
+
         if not self.session_file.exists():
             return False
 
         try:
-            with open(self.session_file, 'r', encoding='utf-8') as f:
-                data = json.load(f)
+            with file_lock(self.session_file):
+                with open(self.session_file, 'r', encoding='utf-8') as f:
+                    data = json.load(f)
 
-            self.csv_path = data.get('csv_path')
-            self.current_index = data.get('current_index', 0)
-            self.stats = data.get('stats', {})
-            self.processed_titles = data.get('processed_titles', [])
-            self.skipped_items = data.get('skipped_items', [])
-            return True
+                self.csv_path = data.get('csv_path')
+                self.current_index = data.get('current_index', 0)
+                self.stats = data.get('stats', {})
+                self.processed_titles = data.get('processed_titles', [])
+                self.skipped_items = data.get('skipped_items', [])
+                return True
         except (json.JSONDecodeError, IOError) as e:
             print(f"Warning: Could not load session from {self.session_file}: {e}")
             return False
+        except TimeoutError as e:
+            print(f"Warning: {e}")
+            return False
+
+    def _cleanup_orphaned_temp_files(self) -> None:
+        """Remove orphaned temporary session files from previous crashes.
+
+        Temp files matching '.session_*.tmp' in the session directory that are
+        older than 1 hour are considered orphaned and removed.
+        """
+        try:
+            parent_dir = self.session_file.parent
+            if not parent_dir.exists():
+                return
+
+            current_time = time.time()
+            max_age_seconds = 3600  # 1 hour
+
+            for tmp_file in parent_dir.glob('.session_*.tmp'):
+                try:
+                    file_age = current_time - tmp_file.stat().st_mtime
+                    if file_age > max_age_seconds:
+                        tmp_file.unlink()
+                except OSError:
+                    pass
+        except OSError:
+            pass
 
     def save(self) -> None:
-        """Save current session state to file."""
+        """Save current session state to file atomically with file locking.
+
+        Uses:
+        - File locking to prevent concurrent access from multiple processes
+        - Atomic write (write to temp file, then rename) to prevent
+          data corruption if the process is interrupted mid-write
+        """
         data = {
             'csv_path': self.csv_path,
             'current_index': self.current_index,
@@ -139,15 +267,78 @@ class SessionState:
         }
 
         try:
-            with open(self.session_file, 'w', encoding='utf-8') as f:
-                json.dump(data, f, indent=2)
+            with file_lock(self.session_file):
+                # Ensure parent directory exists
+                self.session_file.parent.mkdir(parents=True, exist_ok=True)
+
+                # Write to a temporary file in the same directory, then rename
+                # This ensures atomic write - the file is either fully written or not at all
+                fd, tmp_path = tempfile.mkstemp(
+                    suffix='.tmp',
+                    prefix='.session_',
+                    dir=self.session_file.parent
+                )
+                try:
+                    with os.fdopen(fd, 'w', encoding='utf-8') as f:
+                        json.dump(data, f, indent=2)
+                        f.flush()
+                        os.fsync(f.fileno())  # Ensure data is written to disk
+
+                    # Atomic rename (on POSIX systems)
+                    os.replace(tmp_path, self.session_file)
+
+                    # Sync directory to ensure rename is durable on power failure
+                    # This is critical for crash consistency on some filesystems
+                    self._sync_directory(self.session_file.parent)
+                except Exception:
+                    # Clean up temp file on error
+                    try:
+                        os.unlink(tmp_path)
+                    except OSError:
+                        pass
+                    raise
         except IOError as e:
             print(f"Warning: Could not save session to {self.session_file}: {e}")
+        except TimeoutError as e:
+            print(f"Warning: {e}")
+
+    @staticmethod
+    def _sync_directory(dir_path: Path) -> None:
+        """Sync directory to ensure file operations are durable.
+
+        On POSIX systems, syncing the directory ensures that file renames
+        and creations are persisted even on power failure.
+        """
+        try:
+            dir_fd = os.open(str(dir_path), os.O_RDONLY | os.O_DIRECTORY)
+            try:
+                os.fsync(dir_fd)
+            finally:
+                os.close(dir_fd)
+        except (OSError, AttributeError):
+            # O_DIRECTORY may not be available on all systems (e.g., Windows)
+            # In that case, we skip directory sync - the file sync is still done
+            pass
 
     def clear(self) -> None:
-        """Clear the session file."""
-        if self.session_file.exists():
-            self.session_file.unlink()
+        """Clear the session file and associated lock file."""
+        try:
+            with file_lock(self.session_file, timeout=5.0):
+                if self.session_file.exists():
+                    self.session_file.unlink()
+        except TimeoutError:
+            # If we can't get the lock, try to delete anyway
+            if self.session_file.exists():
+                self.session_file.unlink()
+
+        # Clean up lock file
+        lock_file = self.session_file.with_suffix('.lock')
+        if lock_file.exists():
+            try:
+                lock_file.unlink()
+            except OSError:
+                pass
+
         self.csv_path = None
         self.current_index = 0
         self.stats = {}
