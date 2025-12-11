@@ -3,8 +3,10 @@ FilmAffinity Backup CLI
 
 Command-line interface for backing up FilmAffinity data to CSV files.
 """
+from importlib.metadata import version as get_version, PackageNotFoundError
 from pathlib import Path
 import shutil
+from typing import Optional
 
 import click
 import pandas as pd
@@ -22,10 +24,48 @@ from filmaffinity.scraper import (
 from .exporters import export_to_letterboxd
 
 
+def get_app_version() -> str:
+    """Get the application version from package metadata."""
+    try:
+        return get_version("filmaffinity-backup")
+    except PackageNotFoundError:
+        return "dev"
+
+
+def version_callback(value: bool) -> None:
+    """Print version and exit."""
+    if value:
+        print(f"fa-backup version {get_app_version()}")
+        raise typer.Exit()
+
+
+# Global quiet mode flag
+_quiet_mode = False
+
+
+def qprint(*args, **kwargs) -> None:
+    """Print only if not in quiet mode."""
+    if not _quiet_mode:
+        print(*args, **kwargs)
+
+
 app = typer.Typer(
     name="fa-backup",
     help="Backup your FilmAffinity data (watched movies, lists) to CSV files.",
 )
+
+
+@app.callback(invoke_without_command=True)
+def app_callback(
+    version: bool = typer.Option(
+        False, "--version", "-V",
+        callback=version_callback,
+        is_eager=True,
+        help="Show the application version and exit."
+    ),
+) -> None:
+    """FilmAffinity backup tool."""
+    pass
 
 # Default data directory (relative to this file's package root)
 DEFAULT_DATA_DIR = Path(__file__).parent.parent / 'data'
@@ -87,9 +127,9 @@ def load_existing_data(user_dir: Path) -> dict:
         try:
             df = pd.read_csv(csv_file, sep=';')
             data[name] = df.to_dict(orient='list')
-            print(f"  [dim]Loaded existing: {name} ({len(df)} items)[/dim]")
+            qprint(f"  [dim]Loaded existing: {name} ({len(df)} items)[/dim]")
         except Exception as e:
-            print(f"  [yellow]Warning: Could not load {csv_file}: {e}[/yellow]")
+            qprint(f"  [yellow]Warning: Could not load {csv_file}: {e}[/yellow]")
 
     return data
 
@@ -118,6 +158,10 @@ def backup(
         help="Export format: 'csv' (default, semicolon-delimited) or 'letterboxd' (Letterboxd-compatible CSV)",
         click_type=click.Choice(["csv", "letterboxd"]),
     ),
+    quiet: bool = typer.Option(
+        False, "--quiet", "-q",
+        help="Minimal output, only show errors"
+    ),
 ):
     """
     Backup FilmAffinity data (watched movies and lists) to CSV files.
@@ -125,6 +169,9 @@ def backup(
     To find your user_id, go to 'Mis votaciones' and copy the ID from the URL:
     https://www.filmaffinity.com/es/userratings.php?user_id={YOUR_ID}
     """
+    global _quiet_mode
+    _quiet_mode = quiet
+
     data = {}
     user_dir = data_dir / user_id
 
@@ -134,12 +181,12 @@ def backup(
         raise typer.Exit(1)
 
     if lang == 'es':
-        print("[yellow]Using Spanish version of FilmAffinity. Consider using --lang en for better IMDb matching.[/yellow]")
+        qprint("[yellow]Using Spanish version of FilmAffinity. Consider using --lang en for better IMDb matching.[/yellow]")
 
     # Load existing data if resuming
     existing_data = {}
     if resume and user_dir.exists():
-        print("[cyan]Resuming previous session...[/cyan]")
+        qprint("[cyan]Resuming previous session...[/cyan]")
         existing_data = load_existing_data(user_dir)
 
     # Check user exists
@@ -150,17 +197,17 @@ def backup(
 
     # Download lists
     if skip_lists:
-        print("[dim]Skipping user lists (--skip-lists flag)[/dim]")
+        qprint("[dim]Skipping user lists (--skip-lists flag)[/dim]")
         lists = {}
     else:
-        print("Retrieving [hot_pink3 bold]user lists[/hot_pink3 bold]")
+        qprint("Retrieving [hot_pink3 bold]user lists[/hot_pink3 bold]")
         try:
             lists = scraper.get_user_lists(user_id, lang=lang)
         except ScraperError as e:
             _handle_scraper_error(e)
 
         if not lists:
-            print(
+            qprint(
                 ":name_badge: [yellow bold]Warning[/yellow bold]: No lists were found. "
                 "Make sure to mark your lists as :earth_americas: [b u]public[/b u] to "
                 "be able to backup them."
@@ -174,11 +221,11 @@ def backup(
         list_key = f'list - {name}'
 
         if resume and list_key in existing_data:
-            print(f"[dim]Skipping list (already downloaded): [turquoise4]{name}[/turquoise4][/dim]")
+            qprint(f"[dim]Skipping list (already downloaded): [turquoise4]{name}[/turquoise4][/dim]")
             data[list_key] = existing_data[list_key]
             continue
 
-        print(f"Parsing list: [turquoise4 bold]{name}[/turquoise4 bold]")
+        qprint(f"Parsing list: [turquoise4 bold]{name}[/turquoise4 bold]")
         try:
             _, info = scraper.get_list_movies(url, lang=lang)
             data[list_key] = info
@@ -187,10 +234,10 @@ def backup(
 
     # Download watched movies
     if resume and 'watched' in existing_data:
-        print("[dim]Skipping watched movies (already downloaded)[/dim]")
+        qprint("[dim]Skipping watched movies (already downloaded)[/dim]")
         data['watched'] = existing_data['watched']
     else:
-        print("Parsing [green bold]watched[/green bold] movies")
+        qprint("Parsing [green bold]watched[/green bold] movies")
         try:
             data['watched'] = scraper.get_watched_movies(user_id, lang=lang)
         except ScraperError as e:
@@ -204,22 +251,22 @@ def backup(
         user_dir.mkdir(parents=True)
 
     # Save data to files
-    print(f'Saving files to [bold]{user_dir}[/bold]')
+    qprint(f'Saving files to [bold]{user_dir}[/bold]')
     for k, v in data.items():
         csv_path = user_dir / f'{k}.csv'
 
         # Always save the standard CSV (semicolon-delimited)
         df = pd.DataFrame.from_dict(v)
         df.to_csv(csv_path, sep=';', index=False)
-        print(f"  [green]✓ Saved: {csv_path}[/green]")
+        qprint(f"  [green]✓ Saved: {csv_path}[/green]")
 
         # Additionally save Letterboxd format if requested
         if export_format == "letterboxd":
             letterboxd_path = user_dir / f'{k}_letterboxd.csv'
             export_to_letterboxd(v, letterboxd_path)
-            print(f"  [green]✓ Saved Letterboxd CSV: {letterboxd_path}[/green]")
+            qprint(f"  [green]✓ Saved Letterboxd CSV: {letterboxd_path}[/green]")
 
-    print(f"[green]✅ Backup complete! {len(data)} files saved.[/green]")
+    qprint(f"[green]✅ Backup complete! {len(data)} files saved.[/green]")
 
 
 def main():
