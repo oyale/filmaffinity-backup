@@ -22,6 +22,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Fixed
 
 - Fixed potential race condition in session file writes by implementing atomic writes and file locking
+- Fixed FilmAffinity pagination edge cases:
+  - Empty pages are now handled gracefully
+  - Last page detection works correctly (stops after consecutive empty pages)
+  - No infinite loops on malformed responses (MAX_PAGINATION_PAGES safety limit)
+  - Missing/malformed movie data is skipped without crashing
 
 ## [1.0.0] - 2025-12-11
 

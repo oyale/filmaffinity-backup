@@ -24,6 +24,8 @@ from rich import print
 DEFAULT_COOLDOWN = 5  # seconds between requests
 RATE_LIMIT_COOLDOWN = 30  # seconds to wait when rate limited (429)
 MAX_RETRIES = 3  # max retries on rate limit
+MAX_PAGINATION_PAGES = 500  # safety limit to prevent infinite loops
+MAX_CONSECUTIVE_EMPTY_PAGES = 3  # stop after this many empty pages in a row
 
 
 # =============================================================================
@@ -281,28 +283,62 @@ def get_user_lists(
     """
     user_lists = {}
     page = 1
+    consecutive_empty_pages = 0
+    effective_max_page = max_page or MAX_PAGINATION_PAGES
 
-    while True:
+    while page <= effective_max_page:
         url = f'https://www.filmaffinity.com/{lang}/userlists.php?user_id={user_id}&p={page}'
 
         response = request_with_retry(url)
         if response.status_code != 200:
             break
-        if max_page and page > max_page:
-            break
 
         print(f'  [grey50]Parsing page {page}[/grey50]')
         soup = BeautifulSoup(response.text, "html.parser")
-        lists = soup.find(attrs={'class': 'fa-list-group'})
+        lists_container = soup.find(attrs={'class': 'fa-list-group'})
 
-        for tmp in lists.find_all('li'):
+        # Handle empty or missing container
+        if not lists_container:
+            consecutive_empty_pages += 1
+            if consecutive_empty_pages >= MAX_CONSECUTIVE_EMPTY_PAGES:
+                print(f'  [yellow]No more lists found after {page - consecutive_empty_pages} pages[/yellow]')
+                break
+            page += 1
+            time.sleep(DEFAULT_COOLDOWN)
+            continue
+
+        list_items = lists_container.find_all('li')
+        if not list_items:
+            consecutive_empty_pages += 1
+            if consecutive_empty_pages >= MAX_CONSECUTIVE_EMPTY_PAGES:
+                print(f'  [yellow]No more lists found after {page - consecutive_empty_pages} pages[/yellow]')
+                break
+            page += 1
+            time.sleep(DEFAULT_COOLDOWN)
+            continue
+
+        # Reset counter on successful page
+        consecutive_empty_pages = 0
+        items_found_this_page = 0
+
+        for tmp in list_items:
             ele = tmp.find(
                 lambda tag: tag.name == "a" and tag.get("class", []) != ["ls-imgs"]
             )
-            user_lists[ele.text] = ele['href']
+            if ele and ele.get('href'):
+                user_lists[ele.text] = ele['href']
+                items_found_this_page += 1
+
+        # If page had container but no valid items, might be end
+        if items_found_this_page == 0:
+            print(f'  [yellow]No valid list items on page {page}, stopping pagination[/yellow]')
+            break
 
         page += 1
         time.sleep(DEFAULT_COOLDOWN)
+
+    if page > effective_max_page:
+        print(f'  [yellow]Reached maximum page limit ({effective_max_page})[/yellow]')
 
     return user_lists
 
@@ -363,13 +399,30 @@ def parse_movie_card(
 
     Returns:
         Updated info dictionary.
+
+    Note:
+        If essential elements are missing, the movie is skipped and info
+        is returned unchanged.
     """
-    movie_id = movie['data-movie-id']
+    # Validate essential data exists
+    movie_id = movie.get('data-movie-id') if movie else None
+    if not movie_id:
+        return info
+
+    title_elem = movie.find(attrs={'class': 'mc-title'})
+    title_link = title_elem.find('a') if title_elem else None
+    if not title_link:
+        return info
+
+    # Now we can safely add data
     info['FA movie ID'].append(movie_id)
-    info['FA score'].append(movie.find(attrs={'class': 'avg'}).text)
+
+    # FA score (may be missing)
+    avg_elem = movie.find(attrs={'class': 'avg'})
+    info['FA score'].append(avg_elem.text if avg_elem else '')
 
     # Get full title text
-    full_title = movie.find(attrs={'class': 'mc-title'}).find('a').text.strip()
+    full_title = title_link.text.strip()
 
     # Extract title - remove parenthetical part if present
     match = re.search(r'^(.+?)\s*\(([^)]+)\)\s*$', full_title)
@@ -391,17 +444,22 @@ def parse_movie_card(
     else:
         info['original title'].append('')
 
-    info['country'].append(
-        movie.find('img', attrs={'class': 'nflag'})['alt'].strip()
-    )
+    # Country (may be missing)
+    country_flag = movie.find('img', attrs={'class': 'nflag'})
+    info['country'].append(country_flag['alt'].strip() if country_flag and country_flag.get('alt') else '')
 
-    # Keep first non-zero year
+    # Year - keep first non-zero year (may be missing)
     years = movie.find_all('span', attrs={'class': 'mc-year'})
-    info['year'].append([i.text for i in years if i.text][0])
+    year_texts = [i.text for i in years if i.text]
+    info['year'].append(year_texts[0] if year_texts else '')
 
-    # Join all directors
-    directors = movie.find(attrs={'class': 'mc-director'})
-    info['directors'].append(', '.join([i.text for i in directors.find_all('a')]))
+    # Directors (may be missing)
+    directors_elem = movie.find(attrs={'class': 'mc-director'})
+    if directors_elem:
+        director_links = directors_elem.find_all('a')
+        info['directors'].append(', '.join([i.text for i in director_links]))
+    else:
+        info['directors'].append('')
 
     return info
 
@@ -450,32 +508,68 @@ def get_list_movies(
 
     page = 1
     title = ''
+    consecutive_empty_pages = 0
+    effective_max_page = max_page or MAX_PAGINATION_PAGES
 
-    while True:
+    while page <= effective_max_page:
         url = f'{base_url}&page={page}&orderby={order_id}'
 
         response = request_with_retry(url)
         if response.status_code != 200:
-            break
-        if max_page and page > max_page:
             break
 
         print(f'  [grey50]Parsing page {page}[/grey50]')
         soup = BeautifulSoup(response.text, "html.parser")
 
         if page == 1:
-            ele = soup.find('span', attrs={'class': 'fs-5'})
-            title = ele.text.split(':')[1].strip()
+            title_ele = soup.find('span', attrs={'class': 'fs-5'})
+            if title_ele and ':' in title_ele.text:
+                title = title_ele.text.split(':')[1].strip()
 
-        movies = soup.find('ul', attrs={'class': 'fa-list-group'})
-        for movie in movies.find_all('li'):
-            info['user score'].append(
-                movie.find(attrs={'class': 'fa-user-rat-box'}).text
-            )
+        movies_container = soup.find('ul', attrs={'class': 'fa-list-group'})
+
+        # Handle empty or missing container
+        if not movies_container:
+            consecutive_empty_pages += 1
+            if consecutive_empty_pages >= MAX_CONSECUTIVE_EMPTY_PAGES:
+                print(f'  [yellow]No more movies found after {page - consecutive_empty_pages} pages[/yellow]')
+                break
+            page += 1
+            time.sleep(DEFAULT_COOLDOWN)
+            continue
+
+        movie_items = movies_container.find_all('li')
+        if not movie_items:
+            consecutive_empty_pages += 1
+            if consecutive_empty_pages >= MAX_CONSECUTIVE_EMPTY_PAGES:
+                print(f'  [yellow]No more movies found after {page - consecutive_empty_pages} pages[/yellow]')
+                break
+            page += 1
+            time.sleep(DEFAULT_COOLDOWN)
+            continue
+
+        # Reset counter on successful page
+        consecutive_empty_pages = 0
+        movies_found_this_page = 0
+
+        for movie in movie_items:
+            user_score_ele = movie.find(attrs={'class': 'fa-user-rat-box'})
+            if not user_score_ele:
+                continue
+            info['user score'].append(user_score_ele.text)
             info = parse_movie_card(movie, info, lang=lang)
+            movies_found_this_page += 1
+
+        # If page had container but no valid items, might be end
+        if movies_found_this_page == 0:
+            print(f'  [yellow]No valid movie items on page {page}, stopping pagination[/yellow]')
+            break
 
         page += 1
         time.sleep(DEFAULT_COOLDOWN)
+
+    if page > effective_max_page:
+        print(f'  [yellow]Reached maximum page limit ({effective_max_page})[/yellow]')
 
     return title, info
 
@@ -510,32 +604,64 @@ def get_watched_movies(
     orderby = 8  # order by genre
 
     page = 1
-    while True:
+    consecutive_empty_pages = 0
+    effective_max_page = max_page or MAX_PAGINATION_PAGES
+
+    while page <= effective_max_page:
         url = f'https://www.filmaffinity.com/{lang}/userratings.php?user_id={user_id}&p={page}&orderby={orderby}&chv=list'
 
         response = request_with_retry(url)
         if response.status_code != 200:
-            break
-        if max_page and page > max_page:
             break
 
         print(f'  [grey50]Parsing page {page}[/grey50]')
         soup = BeautifulSoup(response.text, "html.parser")
 
         groups = soup.find_all('div', attrs={'class': 'user-ratings-list-resp'})
+
+        # Handle empty page
+        if not groups:
+            consecutive_empty_pages += 1
+            if consecutive_empty_pages >= MAX_CONSECUTIVE_EMPTY_PAGES:
+                print(f'  [yellow]No more movies found after {page - consecutive_empty_pages} pages[/yellow]')
+                break
+            page += 1
+            time.sleep(DEFAULT_COOLDOWN)
+            continue
+
+        movies_found_this_page = 0
+
         for group in groups:
             genre = ''  # Genre field is no longer present
 
             movies = group.find_all('div', class_='row mb-4')
             for movie in movies:
+                user_score_ele = movie.find(attrs={'class': 'fa-user-rat-box'})
+                movie_card = movie.find('div', attrs={'class': 'movie-card'})
+
+                # Skip if essential elements are missing
+                if not user_score_ele or not movie_card:
+                    continue
+
                 info['genre'].append(genre)
-                info['user score'].append(
-                    movie.find(attrs={'class': 'fa-user-rat-box'}).text.strip()
-                )
-                movie = movie.find('div', attrs={'class': 'movie-card'})
-                info = parse_movie_card(movie, info, lang=lang)
+                info['user score'].append(user_score_ele.text.strip())
+                info = parse_movie_card(movie_card, info, lang=lang)
+                movies_found_this_page += 1
+
+        # If page had groups but no valid movies, might be end
+        if movies_found_this_page == 0:
+            consecutive_empty_pages += 1
+            if consecutive_empty_pages >= MAX_CONSECUTIVE_EMPTY_PAGES:
+                print(f'  [yellow]No valid movies found on page {page}, stopping pagination[/yellow]')
+                break
+        else:
+            # Reset counter on successful page
+            consecutive_empty_pages = 0
 
         page += 1
         time.sleep(DEFAULT_COOLDOWN)
+
+    if page > effective_max_page:
+        print(f'  [yellow]Reached maximum page limit ({effective_max_page})[/yellow]')
 
     return info
