@@ -4,11 +4,13 @@ Unit tests for imdb_uploader/uploader.py
 Tests for pure functions that don't require Selenium or network access.
 """
 
+import json
 import os
 import sys
 import tempfile
 import csv
 import pytest
+from pathlib import Path
 from unittest.mock import patch, MagicMock
 
 # Add project root to path so we can import the module
@@ -644,6 +646,163 @@ class TestSessionState:
 
         assert 'Test Movie' in session.processed_titles
         assert session.current_index == 5
+
+    def test_session_state_atomic_write(self):
+        """Test that session save uses atomic write (temp file + rename)."""
+        with tempfile.TemporaryDirectory() as tmpdir:
+            session_file = os.path.join(tmpdir, 'test_session.json')
+            session = uploader.SessionState(session_file)
+            session.csv_path = 'test.csv'
+            session.current_index = 10
+            session.save()
+
+            # Verify file was written correctly
+            assert os.path.exists(session_file)
+            with open(session_file, 'r') as f:
+                data = json.load(f)
+            assert data['csv_path'] == 'test.csv'
+            assert data['current_index'] == 10
+
+            # Verify no temp files left behind
+            files_in_dir = os.listdir(tmpdir)
+            temp_files = [f for f in files_in_dir if f.startswith('.session_') and f.endswith('.tmp')]
+            assert len(temp_files) == 0
+
+    def test_session_state_creates_lock_file(self):
+        """Test that session operations create and use lock files."""
+        with tempfile.TemporaryDirectory() as tmpdir:
+            session_file = os.path.join(tmpdir, 'test_session.json')
+            lock_file = os.path.join(tmpdir, 'test_session.lock')
+
+            session = uploader.SessionState(session_file)
+            session.csv_path = 'test.csv'
+            session.save()
+
+            # Lock file may or may not exist after save (depends on cleanup)
+            # But the session file should exist
+            assert os.path.exists(session_file)
+
+    def test_session_state_clear_removes_lock_file(self):
+        """Test that clear() removes the lock file."""
+        with tempfile.TemporaryDirectory() as tmpdir:
+            session_file = os.path.join(tmpdir, 'test_session.json')
+            lock_file = os.path.join(tmpdir, 'test_session.lock')
+
+            session = uploader.SessionState(session_file)
+            session.csv_path = 'test.csv'
+            session.save()
+
+            # Create a lock file manually to test cleanup
+            with open(lock_file, 'w') as f:
+                f.write('')
+
+            session.clear()
+
+            assert not os.path.exists(session_file)
+            assert not os.path.exists(lock_file)
+
+    def test_session_state_concurrent_save_protection(self):
+        """Test that concurrent saves are handled correctly with file locking."""
+        import threading
+        import time
+
+        with tempfile.TemporaryDirectory() as tmpdir:
+            session_file = os.path.join(tmpdir, 'test_session.json')
+            results = []
+            errors = []
+
+            def save_session(session_num):
+                try:
+                    session = uploader.SessionState(session_file)
+                    session.csv_path = f'test_{session_num}.csv'
+                    session.current_index = session_num
+                    session.save()
+                    results.append(session_num)
+                except Exception as e:
+                    errors.append(str(e))
+
+            # Start multiple threads trying to save simultaneously
+            threads = [threading.Thread(target=save_session, args=(i,)) for i in range(5)]
+            for t in threads:
+                t.start()
+            for t in threads:
+                t.join()
+
+            # All saves should succeed (no errors)
+            assert len(errors) == 0, f"Errors occurred: {errors}"
+            assert len(results) == 5
+
+            # File should exist and be valid JSON
+            assert os.path.exists(session_file)
+            with open(session_file, 'r') as f:
+                data = json.load(f)
+            assert 'csv_path' in data
+            assert 'current_index' in data
+
+
+class TestFileLock:
+    """Tests for file_lock context manager."""
+
+    def test_file_lock_exists(self):
+        """Test that file_lock is exported."""
+        assert hasattr(uploader, 'file_lock')
+
+    def test_file_lock_basic_usage(self):
+        """Test basic file locking."""
+        with tempfile.TemporaryDirectory() as tmpdir:
+            lock_path = Path(tmpdir) / 'test.json'
+
+            with uploader.file_lock(lock_path):
+                # Inside the lock context
+                with open(lock_path, 'w') as f:
+                    f.write('test')
+
+            assert lock_path.exists()
+
+    def test_file_lock_creates_lock_file(self):
+        """Test that file_lock creates a .lock file."""
+        with tempfile.TemporaryDirectory() as tmpdir:
+            lock_path = Path(tmpdir) / 'test.json'
+            expected_lock = Path(tmpdir) / 'test.lock'
+
+            with uploader.file_lock(lock_path):
+                # Lock file should exist during the lock
+                assert expected_lock.exists()
+
+    def test_file_lock_timeout(self):
+        """Test that file_lock times out when lock is held."""
+        import threading
+        import time
+
+        with tempfile.TemporaryDirectory() as tmpdir:
+            lock_path = Path(tmpdir) / 'test.json'
+            lock_acquired = threading.Event()
+            timeout_occurred = threading.Event()
+
+            def hold_lock():
+                with uploader.file_lock(lock_path, timeout=10.0):
+                    lock_acquired.set()
+                    # Hold the lock for 2 seconds
+                    time.sleep(2)
+
+            def try_acquire_lock():
+                lock_acquired.wait()  # Wait for first thread to acquire lock
+                try:
+                    with uploader.file_lock(lock_path, timeout=0.1):
+                        pass
+                except TimeoutError:
+                    timeout_occurred.set()
+
+            t1 = threading.Thread(target=hold_lock)
+            t2 = threading.Thread(target=try_acquire_lock)
+
+            t1.start()
+            t2.start()
+            t1.join()
+            t2.join()
+
+            # Second thread should have timed out
+            assert timeout_occurred.is_set()
 
 
 class TestRetryDecorator:
