@@ -18,7 +18,7 @@
 
 ### Bug Fixes
 
-* [ ] Fix potential race condition in session file writes
+* [x] Fix potential race condition in session file writes
 * [ ] Handle FilmAffinity pagination edge cases
 * [X] Improve error messages for network failures
 
