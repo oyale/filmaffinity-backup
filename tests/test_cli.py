@@ -5,6 +5,7 @@ Tests for the FilmAffinity CLI.
 """
 
 import os
+import re
 import sys
 import pytest
 from unittest.mock import patch, MagicMock
@@ -16,6 +17,12 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 # from other test files can interfere
 import rich
 from rich.panel import Panel
+
+
+def strip_ansi(text: str) -> str:
+    """Remove ANSI escape codes from text."""
+    ansi_escape = re.compile(r'\x1B(?:[@-Z\\-_]|\[[0-?]*[ -/]*[@-~])')
+    return ansi_escape.sub('', text)
 
 
 class TestCLIImports:
@@ -156,9 +163,11 @@ class TestCLIOptions:
 
         runner = CliRunner()
         result = runner.invoke(app, ["--help"], color=False)
+        # Strip ANSI codes - CI environments force color output
+        output = strip_ansi(result.stdout)
         assert result.exit_code == 0
-        assert "--version" in result.stdout
-        assert "-V" in result.stdout
+        assert "--version" in output
+        assert "-V" in output
 
     def test_backup_help_shows_quiet_option(self):
         """Test that --quiet is documented in backup help."""
@@ -167,10 +176,12 @@ class TestCLIOptions:
 
         runner = CliRunner()
         result = runner.invoke(app, ["backup", "--help"], color=False)
+        # Strip ANSI codes - CI environments force color output
+        output = strip_ansi(result.stdout)
         assert result.exit_code == 0
-        assert "--quiet" in result.stdout
-        assert "-q" in result.stdout
-        assert "Minimal output" in result.stdout
+        assert "--quiet" in output
+        assert "-q" in output
+        assert "Minimal output" in output
 
 
 class TestBackupQuietMode:
