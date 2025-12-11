@@ -8,7 +8,7 @@ These are mostly integration tests that require network access.
 import os
 import sys
 import pytest
-from unittest.mock import patch, MagicMock
+from unittest.mock import patch, MagicMock, Mock
 
 # Add project root to path
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
@@ -33,6 +33,206 @@ class TestScraperImports:
         assert hasattr(filmaffinity, 'get_user_lists')
 
 
+class TestScraperExceptions:
+    """Test that exception classes are properly defined and exported."""
+
+    def test_exception_classes_exist(self):
+        from filmaffinity import scraper
+        assert hasattr(scraper, 'ScraperError')
+        assert hasattr(scraper, 'NetworkError')
+        assert hasattr(scraper, 'ConnectionFailedError')
+        assert hasattr(scraper, 'TimeoutError')
+        assert hasattr(scraper, 'RateLimitError')
+        assert hasattr(scraper, 'UserNotFoundError')
+        assert hasattr(scraper, 'ParseError')
+
+    def test_exception_hierarchy(self):
+        from filmaffinity.scraper import (
+            ScraperError, NetworkError, ConnectionFailedError,
+            TimeoutError, RateLimitError, UserNotFoundError, ParseError
+        )
+        # All exceptions should inherit from ScraperError
+        assert issubclass(NetworkError, ScraperError)
+        assert issubclass(ConnectionFailedError, NetworkError)
+        assert issubclass(TimeoutError, NetworkError)
+        assert issubclass(RateLimitError, NetworkError)
+        assert issubclass(UserNotFoundError, ScraperError)
+        assert issubclass(ParseError, ScraperError)
+
+    def test_exceptions_importable_from_package(self):
+        from filmaffinity import (
+            ScraperError, NetworkError, ConnectionFailedError,
+            TimeoutError, RateLimitError, UserNotFoundError, ParseError
+        )
+        assert ScraperError is not None
+        assert NetworkError is not None
+
+    def test_user_not_found_error_attributes(self):
+        from filmaffinity.scraper import UserNotFoundError
+        error = UserNotFoundError(user_id='12345', url='http://example.com')
+        assert error.user_id == '12345'
+        assert error.url == 'http://example.com'
+        assert '12345' in str(error)
+
+    def test_network_error_attributes(self):
+        from filmaffinity.scraper import NetworkError
+        cause = Exception("original error")
+        error = NetworkError("Test error", url='http://example.com', cause=cause)
+        assert error.url == 'http://example.com'
+        assert error.cause == cause
+        assert "Test error" in str(error)
+
+
+class TestNetworkErrorFormatting:
+    """Test the _format_network_error helper function."""
+
+    def test_format_dns_error(self):
+        from filmaffinity.scraper import _format_network_error
+        from requests.exceptions import ConnectionError
+
+        error = ConnectionError("Name or service not known")
+        message = _format_network_error(error, "http://example.com")
+
+        assert "DNS resolution failed" in message
+        assert "No internet connection" in message
+
+    def test_format_connection_refused(self):
+        from filmaffinity.scraper import _format_network_error
+        from requests.exceptions import ConnectionError
+
+        error = ConnectionError("Connection refused")
+        message = _format_network_error(error, "http://example.com")
+
+        assert "Connection refused" in message
+        assert "FilmAffinity is down" in message
+
+    def test_format_timeout_error(self):
+        from filmaffinity.scraper import _format_network_error
+        from requests.exceptions import Timeout
+
+        error = Timeout("Read timed out")
+        message = _format_network_error(error, "http://example.com")
+
+        assert "timed out" in message
+        assert "Slow or unstable" in message
+
+    def test_format_generic_connection_error(self):
+        from filmaffinity.scraper import _format_network_error
+        from requests.exceptions import ConnectionError
+
+        error = ConnectionError("Some other error")
+        message = _format_network_error(error, "http://example.com")
+
+        assert "Unable to connect" in message
+        assert "http://example.com" in message
+
+
+class TestRequestWithRetry:
+    """Test the request_with_retry function."""
+
+    def test_function_exists(self):
+        from filmaffinity import scraper
+        assert callable(scraper.request_with_retry)
+
+    @patch('filmaffinity.scraper.session')
+    def test_successful_request(self, mock_session):
+        from filmaffinity.scraper import request_with_retry
+
+        mock_response = Mock()
+        mock_response.status_code = 200
+        mock_session.get.return_value = mock_response
+
+        response = request_with_retry("http://example.com")
+        assert response.status_code == 200
+
+    @patch('filmaffinity.scraper.session')
+    @patch('filmaffinity.scraper.time.sleep')
+    @patch('filmaffinity.scraper.print')
+    def test_rate_limit_retry(self, mock_print, mock_sleep, mock_session):
+        from filmaffinity.scraper import request_with_retry, RateLimitError
+
+        mock_response_429 = Mock()
+        mock_response_429.status_code = 429
+
+        # Return 429 for all attempts
+        mock_session.get.return_value = mock_response_429
+
+        with pytest.raises(RateLimitError) as exc_info:
+            request_with_retry("http://example.com", max_retries=2)
+
+        assert "Rate limited" in str(exc_info.value)
+        assert mock_session.get.call_count == 2
+
+    @patch('filmaffinity.scraper.session')
+    @patch('filmaffinity.scraper.print')
+    def test_connection_error_raises_custom_exception(self, mock_print, mock_session):
+        from filmaffinity.scraper import request_with_retry, ConnectionFailedError
+        from requests.exceptions import ConnectionError
+
+        mock_session.get.side_effect = ConnectionError("Connection refused")
+
+        with pytest.raises(ConnectionFailedError) as exc_info:
+            request_with_retry("http://example.com", max_retries=1)
+
+        assert exc_info.value.url == "http://example.com"
+
+    @patch('filmaffinity.scraper.session')
+    @patch('filmaffinity.scraper.print')
+    def test_timeout_raises_custom_exception(self, mock_print, mock_session):
+        from filmaffinity.scraper import request_with_retry, TimeoutError
+        from requests.exceptions import Timeout
+
+        mock_session.get.side_effect = Timeout("Read timed out")
+
+        with pytest.raises(TimeoutError) as exc_info:
+            request_with_retry("http://example.com", max_retries=1)
+
+        assert exc_info.value.url == "http://example.com"
+
+
+class TestCheckUser:
+    """Test the check_user function error handling."""
+
+    @patch('filmaffinity.scraper.request_with_retry')
+    def test_user_not_found_raises_exception(self, mock_request):
+        from filmaffinity.scraper import check_user, UserNotFoundError
+
+        mock_response = Mock()
+        mock_response.status_code = 404
+        mock_request.return_value = mock_response
+
+        with pytest.raises(UserNotFoundError) as exc_info:
+            check_user("invalid_user")
+
+        assert exc_info.value.user_id == "invalid_user"
+
+    @patch('filmaffinity.scraper.request_with_retry')
+    def test_unexpected_status_raises_network_error(self, mock_request):
+        from filmaffinity.scraper import check_user, NetworkError
+
+        mock_response = Mock()
+        mock_response.status_code = 500
+        mock_response.reason = "Internal Server Error"
+        mock_request.return_value = mock_response
+
+        with pytest.raises(NetworkError) as exc_info:
+            check_user("some_user")
+
+        assert "500" in str(exc_info.value)
+
+    @patch('filmaffinity.scraper.request_with_retry')
+    def test_success_returns_none(self, mock_request):
+        from filmaffinity.scraper import check_user
+
+        mock_response = Mock()
+        mock_response.status_code = 200
+        mock_request.return_value = mock_response
+
+        # Should not raise
+        result = check_user("valid_user")
+        assert result is None
+
+
 class TestScraperConstants:
     """Test scraper configuration constants."""
 
@@ -46,14 +246,6 @@ class TestScraperConstants:
         from filmaffinity import scraper
         assert scraper.DEFAULT_COOLDOWN > 0
         assert scraper.RATE_LIMIT_COOLDOWN > scraper.DEFAULT_COOLDOWN
-
-
-class TestRequestWithRetry:
-    """Test the request_with_retry function."""
-
-    def test_function_exists(self):
-        from filmaffinity import scraper
-        assert callable(scraper.request_with_retry)
 
 
 # Integration tests (require network access)
