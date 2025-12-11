@@ -135,7 +135,7 @@ class TestCLIOptions:
         from filmaffinity.cli import app
 
         runner = CliRunner()
-        result = runner.invoke(app, ["-V"])
+        result = runner.invoke(app, ["-V"], color=False)
         assert result.exit_code == 0
         assert "fa-backup version" in result.stdout
 
@@ -145,7 +145,7 @@ class TestCLIOptions:
         from filmaffinity.cli import app
 
         runner = CliRunner()
-        result = runner.invoke(app, ["--version"])
+        result = runner.invoke(app, ["--version"], color=False)
         assert result.exit_code == 0
         assert "fa-backup version" in result.stdout
 
@@ -155,7 +155,7 @@ class TestCLIOptions:
         from filmaffinity.cli import app
 
         runner = CliRunner()
-        result = runner.invoke(app, ["--help"])
+        result = runner.invoke(app, ["--help"], color=False)
         assert result.exit_code == 0
         assert "--version" in result.stdout
         assert "-V" in result.stdout
@@ -166,7 +166,7 @@ class TestCLIOptions:
         from filmaffinity.cli import app
 
         runner = CliRunner()
-        result = runner.invoke(app, ["backup", "--help"])
+        result = runner.invoke(app, ["backup", "--help"], color=False)
         assert result.exit_code == 0
         assert "--quiet" in result.stdout
         assert "-q" in result.stdout
@@ -205,7 +205,7 @@ class TestBackupQuietMode:
                 "--quiet",
                 "--skip-lists",
                 "--data-dir", tmpdir
-            ])
+            ], color=False)
 
             # Should succeed
             assert result.exit_code == 0
@@ -241,7 +241,7 @@ class TestBackupQuietMode:
                 "backup", "123456",
                 "--skip-lists",
                 "--data-dir", tmpdir
-            ])
+            ], color=False)
 
             assert result.exit_code == 0
             # Normal mode should show output
