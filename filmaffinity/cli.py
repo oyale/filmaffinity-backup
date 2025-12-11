@@ -6,11 +6,13 @@ Command-line interface for backing up FilmAffinity data to CSV files.
 from pathlib import Path
 import shutil
 
+import click
 import pandas as pd
 from rich import print
 import typer
 
 from filmaffinity import scraper
+from .exporters import export_to_letterboxd
 
 
 app = typer.Typer(
@@ -58,6 +60,11 @@ def backup(
     data_dir: Path = typer.Option(
         DEFAULT_DATA_DIR, "--data-dir",
         help="Directory to save CSV files"
+    ),
+    export_format: str = typer.Option(
+        "csv", "--format",
+        help="Export format: 'csv' (default, semicolon-delimited) or 'letterboxd' (Letterboxd-compatible CSV)",
+        click_type=click.Choice(["csv", "letterboxd"]),
     ),
 ):
     """
@@ -132,11 +139,21 @@ def backup(
     if not user_dir.exists():
         user_dir.mkdir(parents=True)
 
-    # Save data to CSV
-    print(f'Saving CSV files to [bold]{user_dir}[/bold]')
+    # Save data to files
+    print(f'Saving files to [bold]{user_dir}[/bold]')
     for k, v in data.items():
+        csv_path = user_dir / f'{k}.csv'
+
+        # Always save the standard CSV (semicolon-delimited)
         df = pd.DataFrame.from_dict(v)
-        df.to_csv(user_dir / f'{k}.csv', sep=';', index=False)
+        df.to_csv(csv_path, sep=';', index=False)
+        print(f"  [green]✓ Saved: {csv_path}[/green]")
+
+        # Additionally save Letterboxd format if requested
+        if export_format == "letterboxd":
+            letterboxd_path = user_dir / f'{k}_letterboxd.csv'
+            export_to_letterboxd(v, letterboxd_path)
+            print(f"  [green]✓ Saved Letterboxd CSV: {letterboxd_path}[/green]")
 
     print(f"[green]✅ Backup complete! {len(data)} files saved.[/green]")
 
