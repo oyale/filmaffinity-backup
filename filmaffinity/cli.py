@@ -9,9 +9,16 @@ import shutil
 import click
 import pandas as pd
 from rich import print
+from rich.panel import Panel
 import typer
 
 from filmaffinity import scraper
+from filmaffinity.scraper import (
+    ScraperError,
+    NetworkError,
+    UserNotFoundError,
+    RateLimitError,
+)
 from .exporters import export_to_letterboxd
 
 
@@ -22,6 +29,51 @@ app = typer.Typer(
 
 # Default data directory (relative to this file's package root)
 DEFAULT_DATA_DIR = Path(__file__).parent.parent / 'data'
+
+
+def _handle_scraper_error(error: ScraperError) -> None:
+    """Display a user-friendly error message and exit."""
+    if isinstance(error, UserNotFoundError):
+        print(Panel(
+            f"[red bold]User Not Found[/red bold]\n\n"
+            f"The user ID [yellow]'{error.user_id}'[/yellow] does not exist on FilmAffinity.\n\n"
+            f"[dim]To find your user ID:[/dim]\n"
+            f"  1. Go to your FilmAffinity profile\n"
+            f"  2. Click on 'My ratings' (Mis votaciones)\n"
+            f"  3. Copy the [cyan]user_id[/cyan] from the URL:\n"
+            f"     [dim]https://www.filmaffinity.com/en/userratings.php?user_id=[/dim][green]YOUR_ID[/green]",
+            title="❌ Error",
+            border_style="red"
+        ))
+    elif isinstance(error, RateLimitError):
+        print(Panel(
+            f"[red bold]Rate Limited[/red bold]\n\n"
+            f"FilmAffinity is temporarily blocking requests from your IP.\n\n"
+            f"[dim]What to do:[/dim]\n"
+            f"  • Wait [cyan]10-15 minutes[/cyan] before trying again\n"
+            f"  • Use [cyan]--resume[/cyan] flag to continue where you left off\n"
+            f"  • Consider using a VPN if the problem persists",
+            title="⏳ Rate Limited",
+            border_style="yellow"
+        ))
+    elif isinstance(error, NetworkError):
+        print(Panel(
+            f"[red bold]Network Error[/red bold]\n\n"
+            f"{error}\n\n"
+            f"[dim]Troubleshooting tips:[/dim]\n"
+            f"  • Check your internet connection\n"
+            f"  • Try again in a few minutes\n"
+            f"  • Use [cyan]--resume[/cyan] flag to continue where you left off",
+            title="🌐 Connection Problem",
+            border_style="red"
+        ))
+    else:
+        print(Panel(
+            f"[red bold]Error[/red bold]\n\n{error}",
+            title="❌ Error",
+            border_style="red"
+        ))
+    raise typer.Exit(1)
 
 
 def load_existing_data(user_dir: Path) -> dict:
@@ -91,7 +143,10 @@ def backup(
         existing_data = load_existing_data(user_dir)
 
     # Check user exists
-    scraper.check_user(user_id, lang=lang)
+    try:
+        scraper.check_user(user_id, lang=lang)
+    except ScraperError as e:
+        _handle_scraper_error(e)
 
     # Download lists
     if skip_lists:
@@ -99,7 +154,10 @@ def backup(
         lists = {}
     else:
         print("Retrieving [hot_pink3 bold]user lists[/hot_pink3 bold]")
-        lists = scraper.get_user_lists(user_id, lang=lang)
+        try:
+            lists = scraper.get_user_lists(user_id, lang=lang)
+        except ScraperError as e:
+            _handle_scraper_error(e)
 
         if not lists:
             print(
@@ -121,8 +179,11 @@ def backup(
             continue
 
         print(f"Parsing list: [turquoise4 bold]{name}[/turquoise4 bold]")
-        _, info = scraper.get_list_movies(url, lang=lang)
-        data[list_key] = info
+        try:
+            _, info = scraper.get_list_movies(url, lang=lang)
+            data[list_key] = info
+        except ScraperError as e:
+            _handle_scraper_error(e)
 
     # Download watched movies
     if resume and 'watched' in existing_data:
@@ -130,7 +191,10 @@ def backup(
         data['watched'] = existing_data['watched']
     else:
         print("Parsing [green bold]watched[/green bold] movies")
-        data['watched'] = scraper.get_watched_movies(user_id, lang=lang)
+        try:
+            data['watched'] = scraper.get_watched_movies(user_id, lang=lang)
+        except ScraperError as e:
+            _handle_scraper_error(e)
 
     # Clear previous user data (only if not resuming)
     if not resume:

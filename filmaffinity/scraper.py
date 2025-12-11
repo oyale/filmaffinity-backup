@@ -9,6 +9,11 @@ from typing import Optional
 
 from bs4 import BeautifulSoup
 import requests
+from requests.exceptions import (
+    ConnectionError,
+    Timeout,
+    RequestException,
+)
 from rich import print
 
 
@@ -19,6 +24,53 @@ from rich import print
 DEFAULT_COOLDOWN = 5  # seconds between requests
 RATE_LIMIT_COOLDOWN = 30  # seconds to wait when rate limited (429)
 MAX_RETRIES = 3  # max retries on rate limit
+
+
+# =============================================================================
+# Custom Exceptions
+# =============================================================================
+
+class ScraperError(Exception):
+    """Base exception for FilmAffinity scraper errors."""
+    pass
+
+
+class NetworkError(ScraperError):
+    """Raised when a network-related error occurs."""
+
+    def __init__(self, message: str, url: str = None, cause: Exception = None):
+        self.url = url
+        self.cause = cause
+        super().__init__(message)
+
+
+class ConnectionFailedError(NetworkError):
+    """Raised when unable to connect to FilmAffinity."""
+    pass
+
+
+class TimeoutError(NetworkError):
+    """Raised when a request times out."""
+    pass
+
+
+class RateLimitError(NetworkError):
+    """Raised when rate limited by FilmAffinity (HTTP 429)."""
+    pass
+
+
+class UserNotFoundError(ScraperError):
+    """Raised when the specified user ID does not exist."""
+
+    def __init__(self, user_id: str, url: str = None):
+        self.user_id = user_id
+        self.url = url
+        super().__init__(f"User ID '{user_id}' not found on FilmAffinity")
+
+
+class ParseError(ScraperError):
+    """Raised when unable to parse FilmAffinity page content."""
+    pass
 
 # =============================================================================
 # HTTP Session
@@ -44,31 +96,132 @@ session.headers.update({
 # HTTP Request Helpers
 # =============================================================================
 
-def request_with_retry(url: str, max_retries: int = MAX_RETRIES) -> requests.Response:
+def _format_network_error(error: Exception, url: str) -> str:
+    """Format a network error with user-friendly guidance."""
+    error_str = str(error).lower()
+
+    if isinstance(error, ConnectionError):
+        if 'name or service not known' in error_str or 'getaddrinfo failed' in error_str:
+            return (
+                f"DNS resolution failed - unable to resolve 'filmaffinity.com'.\n"
+                f"  Possible causes:\n"
+                f"    • No internet connection\n"
+                f"    • DNS server is unreachable\n"
+                f"    • FilmAffinity domain is blocked\n"
+                f"  URL: {url}"
+            )
+        elif 'connection refused' in error_str:
+            return (
+                f"Connection refused by FilmAffinity server.\n"
+                f"  Possible causes:\n"
+                f"    • FilmAffinity is down or under maintenance\n"
+                f"    • Your IP may be blocked\n"
+                f"    • Firewall blocking the connection\n"
+                f"  URL: {url}"
+            )
+        else:
+            return (
+                f"Unable to connect to FilmAffinity.\n"
+                f"  Possible causes:\n"
+                f"    • No internet connection\n"
+                f"    • FilmAffinity is temporarily unavailable\n"
+                f"    • Network firewall blocking access\n"
+                f"  URL: {url}\n"
+                f"  Details: {error}"
+            )
+
+    elif isinstance(error, Timeout):
+        return (
+            f"Request timed out while connecting to FilmAffinity.\n"
+            f"  Possible causes:\n"
+            f"    • Slow or unstable internet connection\n"
+            f"    • FilmAffinity server is overloaded\n"
+            f"  Try again in a few minutes.\n"
+            f"  URL: {url}"
+        )
+
+    else:
+        return (
+            f"Network error while accessing FilmAffinity.\n"
+            f"  URL: {url}\n"
+            f"  Error: {error}"
+        )
+
+
+def request_with_retry(url: str, max_retries: int = MAX_RETRIES, timeout: int = 30) -> requests.Response:
     """
     Make a request with retry logic for rate limiting (429 errors).
 
     Args:
         url: URL to request.
         max_retries: Maximum number of retries on rate limiting.
+        timeout: Request timeout in seconds.
 
     Returns:
-        Response object (may still be 429 if all retries failed).
+        Response object.
+
+    Raises:
+        ConnectionFailedError: If unable to connect after retries.
+        TimeoutError: If request times out.
+        RateLimitError: If rate limited after all retries exhausted.
+        NetworkError: For other network-related errors.
     """
     cooldown = RATE_LIMIT_COOLDOWN
+    last_error = None
 
     for attempt in range(max_retries):
-        response = session.get(url, verify=True)
+        try:
+            response = session.get(url, verify=True, timeout=timeout)
 
-        if response.status_code == 429:
-            print(f"  [yellow]⚠️  Rate limited (429). Waiting {cooldown}s before retry ({attempt + 1}/{max_retries})...[/yellow]")
-            time.sleep(cooldown)
-            cooldown = min(cooldown * 2, 120)  # Exponential backoff
-            continue
+            if response.status_code == 429:
+                print(f"  [yellow]⚠️  Rate limited (429). Waiting {cooldown}s before retry ({attempt + 1}/{max_retries})...[/yellow]")
+                time.sleep(cooldown)
+                cooldown = min(cooldown * 2, 120)  # Exponential backoff
+                continue
 
-        return response
+            return response
 
-    return response
+        except ConnectionError as e:
+            last_error = e
+            if attempt < max_retries - 1:
+                wait_time = (attempt + 1) * 5
+                print(f"  [yellow]⚠️  Connection failed. Retrying in {wait_time}s ({attempt + 1}/{max_retries})...[/yellow]")
+                time.sleep(wait_time)
+                continue
+            raise ConnectionFailedError(
+                _format_network_error(e, url),
+                url=url,
+                cause=e
+            )
+
+        except Timeout as e:
+            last_error = e
+            if attempt < max_retries - 1:
+                wait_time = (attempt + 1) * 5
+                print(f"  [yellow]⚠️  Request timed out. Retrying in {wait_time}s ({attempt + 1}/{max_retries})...[/yellow]")
+                time.sleep(wait_time)
+                continue
+            raise TimeoutError(
+                _format_network_error(e, url),
+                url=url,
+                cause=e
+            )
+
+        except RequestException as e:
+            raise NetworkError(
+                _format_network_error(e, url),
+                url=url,
+                cause=e
+            )
+
+    # If we got here, we exhausted retries on 429
+    raise RateLimitError(
+        f"Rate limited by FilmAffinity after {max_retries} retries.\n"
+        f"  FilmAffinity is blocking requests from your IP.\n"
+        f"  Please wait 10-15 minutes before trying again.\n"
+        f"  URL: {url}",
+        url=url
+    )
 
 
 # =============================================================================
@@ -84,25 +237,29 @@ def check_user(user_id: str, lang: str = 'en') -> None:
         lang: Language version ('es' or 'en'). Default: 'en' for better IMDb matching.
 
     Raises:
-        Exception: If user ID does not exist.
+        UserNotFoundError: If user ID does not exist.
+        RateLimitError: If rate limited by FilmAffinity.
+        NetworkError: For other network-related errors.
     """
     url = f'https://www.filmaffinity.com/{lang}/userlists.php?user_id={user_id}'
-    response = request_with_retry(url)
 
-    if response.status_code == 429:
-        raise Exception(
-            f"Rate limited by FilmAffinity. Please wait and try again later.\n"
-            f"    URL: {url}"
-        )
-    elif response.status_code == 404:
-        raise Exception(
-            "The user ID you provided does not exist. Could not find:\n"
-            f"    {url}"
+    try:
+        response = request_with_retry(url)
+    except NetworkError:
+        raise  # Re-raise with improved error messages
+
+    if response.status_code == 404:
+        raise UserNotFoundError(
+            user_id=user_id,
+            url=url
         )
     elif response.status_code != 200:
-        raise Exception(
-            f"Failed to access FilmAffinity (HTTP {response.status_code}). Could not reach:\n"
-            f"    {url}"
+        raise NetworkError(
+            f"Unexpected response from FilmAffinity (HTTP {response.status_code}).\n"
+            f"  The server returned an unexpected status code.\n"
+            f"  URL: {url}\n"
+            f"  Status: {response.status_code} {response.reason}",
+            url=url
         )
 
 

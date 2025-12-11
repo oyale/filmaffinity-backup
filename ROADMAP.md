@@ -20,7 +20,7 @@
 
 * [ ] Fix potential race condition in session file writes
 * [ ] Handle FilmAffinity pagination edge cases
-* [ ] Improve error messages for network failures
+* [X] Improve error messages for network failures
 
 ### Improvements
 
@@ -32,8 +32,8 @@
 ### Documentation
 
 * [ ] Add CONTRIBUTING.md
-* [ ] Add CHANGELOG.md
-* [ ] Add issue/PR templates for GitHub
+* [x] Add CHANGELOG.md
+* [X] Add issue/PR templates for GitHub
 
 ---
 
