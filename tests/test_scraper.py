@@ -241,11 +241,234 @@ class TestScraperConstants:
         assert hasattr(scraper, 'DEFAULT_COOLDOWN')
         assert hasattr(scraper, 'RATE_LIMIT_COOLDOWN')
         assert hasattr(scraper, 'MAX_RETRIES')
+        assert hasattr(scraper, 'MAX_PAGINATION_PAGES')
+        assert hasattr(scraper, 'MAX_CONSECUTIVE_EMPTY_PAGES')
 
     def test_cooldown_values(self):
         from filmaffinity import scraper
         assert scraper.DEFAULT_COOLDOWN > 0
         assert scraper.RATE_LIMIT_COOLDOWN > scraper.DEFAULT_COOLDOWN
+
+    def test_pagination_safety_values(self):
+        from filmaffinity import scraper
+        assert scraper.MAX_PAGINATION_PAGES > 0
+        assert scraper.MAX_CONSECUTIVE_EMPTY_PAGES > 0
+        # Safety limit should be reasonable
+        assert scraper.MAX_PAGINATION_PAGES >= 100
+        assert scraper.MAX_PAGINATION_PAGES <= 1000
+
+
+class TestPaginationEdgeCases:
+    """Tests for pagination edge case handling."""
+
+    @patch('filmaffinity.scraper.time.sleep')
+    @patch('filmaffinity.scraper.request_with_retry')
+    @patch('filmaffinity.scraper.print')
+    def test_get_user_lists_handles_empty_container(self, mock_print, mock_request, mock_sleep):
+        """Test that get_user_lists handles missing fa-list-group gracefully."""
+        from filmaffinity import scraper
+
+        # Return HTML without fa-list-group
+        mock_response = MagicMock()
+        mock_response.status_code = 200
+        mock_response.text = '<html><body><div>No lists here</div></body></html>'
+        mock_request.return_value = mock_response
+
+        result = scraper.get_user_lists('12345', max_page=5)
+
+        assert result == {}
+        # Should have stopped after MAX_CONSECUTIVE_EMPTY_PAGES
+        assert mock_request.call_count <= scraper.MAX_CONSECUTIVE_EMPTY_PAGES + 1
+
+    @patch('filmaffinity.scraper.time.sleep')
+    @patch('filmaffinity.scraper.request_with_retry')
+    @patch('filmaffinity.scraper.print')
+    def test_get_user_lists_handles_empty_list_items(self, mock_print, mock_request, mock_sleep):
+        """Test that get_user_lists handles empty li elements gracefully."""
+        from filmaffinity import scraper
+
+        # Return HTML with fa-list-group but no li elements
+        mock_response = MagicMock()
+        mock_response.status_code = 200
+        mock_response.text = '<html><body><div class="fa-list-group"></div></body></html>'
+        mock_request.return_value = mock_response
+
+        result = scraper.get_user_lists('12345', max_page=5)
+
+        assert result == {}
+
+    @patch('filmaffinity.scraper.time.sleep')
+    @patch('filmaffinity.scraper.request_with_retry')
+    @patch('filmaffinity.scraper.print')
+    def test_get_user_lists_respects_max_page_limit(self, mock_print, mock_request, mock_sleep):
+        """Test that get_user_lists respects MAX_PAGINATION_PAGES."""
+        from filmaffinity import scraper
+
+        # Return valid HTML with lists
+        mock_response = MagicMock()
+        mock_response.status_code = 200
+        mock_response.text = '''
+        <html><body>
+        <div class="fa-list-group">
+            <li><a href="/list/1">List 1</a></li>
+        </div>
+        </body></html>
+        '''
+        mock_request.return_value = mock_response
+
+        # Set a low max_page for testing
+        result = scraper.get_user_lists('12345', max_page=2)
+
+        # Should stop after 2 pages
+        assert mock_request.call_count == 2
+
+    @patch('filmaffinity.scraper.time.sleep')
+    @patch('filmaffinity.scraper.request_with_retry')
+    @patch('filmaffinity.scraper.print')
+    def test_get_watched_movies_handles_empty_groups(self, mock_print, mock_request, mock_sleep):
+        """Test that get_watched_movies handles empty rating groups gracefully."""
+        from filmaffinity import scraper
+
+        # Return HTML without user-ratings-list-resp
+        mock_response = MagicMock()
+        mock_response.status_code = 200
+        mock_response.text = '<html><body><div>No movies</div></body></html>'
+        mock_request.return_value = mock_response
+
+        result = scraper.get_watched_movies('12345', max_page=5)
+
+        assert result['title'] == []
+        assert result['user score'] == []
+        # Should have stopped after MAX_CONSECUTIVE_EMPTY_PAGES
+        assert mock_request.call_count <= scraper.MAX_CONSECUTIVE_EMPTY_PAGES + 1
+
+    @patch('filmaffinity.scraper.time.sleep')
+    @patch('filmaffinity.scraper.request_with_retry')
+    @patch('filmaffinity.scraper.print')
+    def test_get_watched_movies_handles_missing_elements(self, mock_print, mock_request, mock_sleep):
+        """Test that get_watched_movies skips movies with missing elements."""
+        from filmaffinity import scraper
+
+        # Return HTML with groups but incomplete movie data
+        mock_response = MagicMock()
+        mock_response.status_code = 200
+        mock_response.text = '''
+        <html><body>
+        <div class="user-ratings-list-resp">
+            <div class="row mb-4">
+                <!-- Missing fa-user-rat-box -->
+                <div class="movie-card"></div>
+            </div>
+            <div class="row mb-4">
+                <div class="fa-user-rat-box">8</div>
+                <!-- Missing movie-card -->
+            </div>
+        </div>
+        </body></html>
+        '''
+        mock_request.return_value = mock_response
+
+        result = scraper.get_watched_movies('12345', max_page=5)
+
+        # Should have skipped both invalid movies
+        assert result['user score'] == []
+
+    @patch('filmaffinity.scraper.time.sleep')
+    @patch('filmaffinity.scraper.request_with_retry')
+    @patch('filmaffinity.scraper.print')
+    def test_get_list_movies_handles_empty_container(self, mock_print, mock_request, mock_sleep):
+        """Test that get_list_movies handles missing movie container gracefully."""
+        from filmaffinity import scraper
+
+        # Return HTML without fa-list-group
+        mock_response = MagicMock()
+        mock_response.status_code = 200
+        mock_response.text = '<html><body><span class="fs-5">List: My List</span></body></html>'
+        mock_request.return_value = mock_response
+
+        title, result = scraper.get_list_movies('http://example.com/list?id=1', max_page=5)
+
+        assert result['title'] == []
+        assert result['user score'] == []
+
+    @patch('filmaffinity.scraper.time.sleep')
+    @patch('filmaffinity.scraper.request_with_retry')
+    @patch('filmaffinity.scraper.print')
+    def test_get_list_movies_handles_missing_title(self, mock_print, mock_request, mock_sleep):
+        """Test that get_list_movies handles missing title element gracefully."""
+        from filmaffinity import scraper
+
+        # Return HTML without fs-5 title span, and movie card without data-movie-id
+        mock_response = MagicMock()
+        mock_response.status_code = 200
+        mock_response.text = '''
+        <html><body>
+        <ul class="fa-list-group">
+            <li>
+                <div class="fa-user-rat-box">8</div>
+                <div class="movie-card">
+                    <div class="mc-title"><a href="/film123.html">Test Movie</a></div>
+                </div>
+            </li>
+        </ul>
+        </body></html>
+        '''
+        mock_request.return_value = mock_response
+
+        title, result = scraper.get_list_movies('http://example.com/list?id=1', max_page=1)
+
+        # Title should be empty string, not crash
+        assert title == ''
+        # Movie without data-movie-id should be skipped
+        assert result['title'] == []
+
+    @patch('filmaffinity.scraper.time.sleep')
+    @patch('filmaffinity.scraper.request_with_retry')
+    @patch('filmaffinity.scraper.print')
+    def test_pagination_stops_on_http_error(self, mock_print, mock_request, mock_sleep):
+        """Test that pagination stops cleanly on HTTP errors."""
+        from filmaffinity import scraper
+
+        # First page succeeds, second fails
+        mock_response_ok = MagicMock()
+        mock_response_ok.status_code = 200
+        mock_response_ok.text = '''
+        <html><body>
+        <div class="fa-list-group">
+            <li><a href="/list/1">List 1</a></li>
+        </div>
+        </body></html>
+        '''
+
+        mock_response_error = MagicMock()
+        mock_response_error.status_code = 500
+
+        mock_request.side_effect = [mock_response_ok, mock_response_error]
+
+        result = scraper.get_user_lists('12345')
+
+        assert 'List 1' in result
+        assert mock_request.call_count == 2
+
+    @patch('filmaffinity.scraper.time.sleep')
+    @patch('filmaffinity.scraper.request_with_retry')
+    @patch('filmaffinity.scraper.print')
+    def test_no_infinite_loop_on_malformed_response(self, mock_print, mock_request, mock_sleep):
+        """Test that pagination doesn't loop infinitely on malformed responses."""
+        from filmaffinity import scraper
+
+        # Return same malformed response every time
+        mock_response = MagicMock()
+        mock_response.status_code = 200
+        mock_response.text = '<html><body>Malformed page</body></html>'
+        mock_request.return_value = mock_response
+
+        # This should NOT loop 500 times (MAX_PAGINATION_PAGES)
+        result = scraper.get_user_lists('12345')
+
+        # Should stop after MAX_CONSECUTIVE_EMPTY_PAGES
+        assert mock_request.call_count <= scraper.MAX_CONSECUTIVE_EMPTY_PAGES + 1
+        assert result == {}
 
 
 # Integration tests (require network access)
