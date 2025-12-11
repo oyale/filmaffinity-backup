@@ -13,9 +13,6 @@ from unittest.mock import patch, MagicMock, Mock
 # Add project root to path
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-# Mock rich (may not be installed in test env)
-sys.modules['rich'] = MagicMock()
-
 
 class TestScraperImports:
     """Test that scraper module can be imported."""
