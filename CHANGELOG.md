@@ -7,20 +7,22 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.1.0] - 2025-12-13
+
 ### Added
+- CSV format validation before processing with `--validate-only` and `--skip-validation` flags
 - Custom exception classes for better error handling (`ScraperError`, `NetworkError`, `ConnectionFailedError`, `TimeoutError`, `RateLimitError`, `UserNotFoundError`, `ParseError`)
 - User-friendly error messages with troubleshooting tips for network failures
 - Rich CLI error panels with actionable guidance
 - Letterboxd CSV export format (`--format letterboxd`)
 - `export_to_letterboxd` function in public API
-- Comprehensive unit tests for exporters and error handling
+- Comprehensive unit tests for exporters, error handling, and CSV validation
 
 ### Changed
 - `request_with_retry` now raises specific exceptions instead of returning failed responses
 - CLI now catches and displays network errors with helpful context
 
 ### Fixed
-
 - Fixed potential race condition in session file writes by implementing atomic writes and file locking
 - Fixed FilmAffinity pagination edge cases:
   - Empty pages are now handled gracefully
@@ -45,5 +47,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Configuration file support
 - Initial ROADMAP.md
 
-[Unreleased]: https://github.com/oyale/filmaffinity-backup/compare/v1.0.0...HEAD
+[Unreleased]: https://github.com/oyale/filmaffinity-backup/compare/v1.1.0...HEAD
+[1.1.0]: https://github.com/oyale/filmaffinity-backup/compare/v1.0.0...v1.1.0
 [1.0.0]: https://github.com/oyale/filmaffinity-backup/releases/tag/v1.0.0
