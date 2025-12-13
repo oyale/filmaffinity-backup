@@ -77,8 +77,7 @@ filmaffinity-backup/
 │   ├── uploader.py     # Main upload logic
 │   ├── config.py       # Configuration & session management
 │   └── prompts.py      # User interaction prompts
-├── tests/              # Test files
-└── scripts/            # Utility scripts
+└── tests/              # Test files
 ```
 
 ## Questions?
