@@ -898,6 +898,111 @@ class TestParseArgumentsNewOptions:
             args = uploader.parse_arguments()
             assert args.clear_session is True
 
+    def test_validate_only_option(self):
+        """Test that --validate-only flag is parsed correctly."""
+        with patch('sys.argv', ['script.py', '--csv', 'test.csv', '--validate-only']):
+            args = uploader.parse_arguments()
+            assert args.validate_only is True
+
+    def test_validate_only_default_false(self):
+        """Test that --validate-only defaults to False."""
+        with patch('sys.argv', ['script.py', '--csv', 'test.csv']):
+            args = uploader.parse_arguments()
+            assert args.validate_only is False
+
+    def test_skip_validation_option(self):
+        """Test that --skip-validation flag is parsed correctly."""
+        with patch('sys.argv', ['script.py', '--csv', 'test.csv', '--skip-validation']):
+            args = uploader.parse_arguments()
+            assert args.skip_validation is True
+
+    def test_skip_validation_default_false(self):
+        """Test that --skip-validation defaults to False."""
+        with patch('sys.argv', ['script.py', '--csv', 'test.csv']):
+            args = uploader.parse_arguments()
+            assert args.skip_validation is False
+
+    def test_validate_only_without_csv(self):
+        """Test that --validate-only can be used without --csv initially (checked in main)."""
+        with patch('sys.argv', ['script.py', '--validate-only']):
+            # Should not raise error in parse_arguments - check happens in main()
+            args = uploader.parse_arguments()
+            assert args.validate_only is True
+
+
+class TestCSVValidation:
+    """Tests for CSV validation integration."""
+
+    def test_load_items_validates_csv(self):
+        """Test that load_items validates CSV before processing."""
+        with tempfile.NamedTemporaryFile(mode='w', suffix='.csv', delete=False, encoding='utf-8') as f:
+            f.write('title;year;user score;directors\n')
+            f.write('The Godfather;1972;10;Francis Ford Coppola\n')
+            csv_path = f.name
+
+        try:
+            args = MagicMock()
+            args.csv = csv_path
+            args.retry = None
+            args.skip_validation = False
+
+            # Should not raise - validation passes
+            items = uploader.load_items(args)
+            assert len(items) == 1
+            assert items[0]['title'] == 'The Godfather'
+        finally:
+            os.unlink(csv_path)
+
+    def test_load_items_skips_validation_when_flag_set(self):
+        """Test that --skip-validation bypasses CSV validation."""
+        with tempfile.NamedTemporaryFile(mode='w', suffix='.csv', delete=False, encoding='utf-8') as f:
+            f.write('title;year;user score\n')
+            f.write('Test Movie;2020;8\n')
+            csv_path = f.name
+
+        try:
+            args = MagicMock()
+            args.csv = csv_path
+            args.retry = None
+            args.skip_validation = True
+
+            items = uploader.load_items(args)
+            assert len(items) == 1
+        finally:
+            os.unlink(csv_path)
+
+    def test_load_items_fails_on_invalid_csv(self):
+        """Test that load_items exits on invalid CSV."""
+        with tempfile.NamedTemporaryFile(mode='w', suffix='.csv', delete=False, encoding='utf-8') as f:
+            # Missing required 'title' column
+            f.write('name;year;rating\n')
+            f.write('Movie;2020;8\n')
+            csv_path = f.name
+
+        try:
+            args = MagicMock()
+            args.csv = csv_path
+            args.retry = None
+            args.skip_validation = False
+
+            # Should exit with code 1 due to validation failure
+            with pytest.raises(SystemExit) as exc_info:
+                uploader.load_items(args)
+            assert exc_info.value.code == 1
+        finally:
+            os.unlink(csv_path)
+
+    def test_load_items_fails_on_missing_file(self):
+        """Test that load_items exits when CSV file doesn't exist."""
+        args = MagicMock()
+        args.csv = '/nonexistent/path/to/file.csv'
+        args.retry = None
+        args.skip_validation = False
+
+        with pytest.raises(SystemExit) as exc_info:
+            uploader.load_items(args)
+        assert exc_info.value.code == 1
+
 
 if __name__ == '__main__':
     pytest.main([__file__, '-v'])

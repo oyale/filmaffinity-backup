@@ -110,6 +110,7 @@ from .prompts import (
     prompt_low_confidence_match,
     prompt_select_candidate,
 )
+from .csv_validator import validate_csv_format, ValidationResult
 
 
 # =============================================================================
@@ -1158,6 +1159,8 @@ def parse_arguments() -> argparse.Namespace:
     parser.add_argument('--auto-rate', action='store_true', help='Try automated rating clicks (best-effort). If fails, will prompt for manual rating.')
     parser.add_argument('--dry-run', action='store_true', help='Only map CSV titles to IMDb IDs via IMDbPY and produce a CSV mapping, then exit')
     parser.add_argument('--dry-run-output', default='imdb_matches.csv', help='Output path for dry-run CSV mapping')
+    parser.add_argument('--validate-only', action='store_true', help='Only validate CSV format and exit')
+    parser.add_argument('--skip-validation', action='store_true', help='Skip CSV format validation')
     parser.add_argument('--start', type=int, default=0, help='Start index into CSV items')
     parser.add_argument('--limit', type=int, default=0, help='Limit number of items (0 = all)')
     parser.add_argument('--confirm-threshold', type=float, default=DEFAULT_CONFIDENCE_THRESHOLD,
@@ -1191,6 +1194,10 @@ def parse_arguments() -> argparse.Namespace:
         return args
 
     if args.save_config:
+        return args
+
+    # Handle --validate-only (requires --csv, handled separately)
+    if args.validate_only:
         return args
 
     # Validate: either --csv, --retry, or --resume must be provided
@@ -1259,13 +1266,31 @@ def load_items(args: argparse.Namespace) -> list[MovieItem]:
 
     Returns:
         List of movie items to process.
+
+    Raises:
+        SystemExit: If CSV validation fails.
     """
     if args.retry:
         return load_retry_items(args.skipped_dir, args.retry)
-    else:
-        items = read_csv(args.csv)
-        print(f'Read {len(items)} items from {args.csv}')
-        return items
+
+    # Validate CSV format before processing (unless --skip-validation)
+    skip_validation = getattr(args, 'skip_validation', False)
+    if not skip_validation:
+        print(f'Validating CSV format: {args.csv}')
+        validation = validate_csv_format(args.csv, require_score=True)
+        print(validation)
+
+        if not validation.valid:
+            print('\n❌ CSV validation failed. Fix the errors above and try again.')
+            print('   Use --skip-validation to bypass this check (not recommended).')
+            sys.exit(1)
+
+        if validation.warnings:
+            print('\n⚠️  Validation passed with warnings (see above).')
+
+    items = read_csv(args.csv)
+    print(f'Read {len(items)} items from {args.csv}')
+    return items
 
 
 def load_retry_items(skipped_dir: str, retry_category: str) -> list[MovieItem]:
@@ -1787,6 +1812,21 @@ def main():
         print("Current configuration:")
         print(json.dumps(config, indent=2))
         return
+
+    # Handle --validate-only: validate CSV and exit
+    if args.validate_only:
+        if not args.csv:
+            print("Error: --csv is required with --validate-only")
+            sys.exit(1)
+        print(f'Validating CSV format: {args.csv}')
+        validation = validate_csv_format(args.csv, require_score=True)
+        print(validation)
+        if validation.valid:
+            print('\n✅ CSV is valid and ready for processing.')
+            sys.exit(0)
+        else:
+            print('\n❌ CSV validation failed.')
+            sys.exit(1)
 
     if args.save_config:
         # Build config from current args
