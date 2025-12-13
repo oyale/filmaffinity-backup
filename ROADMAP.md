@@ -31,7 +31,7 @@
 
 ### Documentation
 
-* [ ] Add CONTRIBUTING.md
+* [x] Add CONTRIBUTING.md
 * [x] Add CHANGELOG.md
 * [X] Add issue/PR templates for GitHub
 
