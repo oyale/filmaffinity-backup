@@ -26,7 +26,7 @@
 
 * [x] Add `--version` flag to CLI commands
 * [x] Add progress percentage to upload status
-* [ ] Validate CSV format before processing
+* [x] Validate CSV format before processing
 * [x] Add `--quiet` mode for minimal output
 
 ### Documentation
