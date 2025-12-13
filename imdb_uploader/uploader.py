@@ -1326,16 +1326,18 @@ def run_dry_run(items: list[MovieItem], ia: Any, output_path: str) -> None:
         output_path: Path for output CSV file.
     """
     print(f'Running dry-run mapping using IMDbPY; writing results to {output_path}')
+    total_items = len(items)
     with open(output_path, 'w', newline='', encoding='utf-8') as fh:
         w = csv.writer(fh)
         w.writerow(['local_title', 'local_year', 'local_director', 'imdb_id', 'imdb_title', 'imdb_year', 'score', 'query', 'result_count'])
-        for it in items:
+        for idx, it in enumerate(items, start=1):
             title = it['title']
             year = it.get('year')
             director = it.get('directors')
             original_title = it.get('original_title')
+            progress_pct = (idx / total_items) * 100
             best = find_imdb_match(title, year, ia=ia, director=director, original_title=original_title)
-            print(f'Best match for "{title}" ({year}) [director: {director}] [original: {original_title}]: {best}')
+            print(f'[{idx}/{total_items}] ({progress_pct:.1f}%) Best match for "{title}" ({year}): {best.get("title") if best else "None"}')
             if best:
                 imdb_id = f"tt{best['movieID']}" if best.get('movieID') else ''
                 w.writerow([title, year or '', director or '', imdb_id, best.get('title') or '', best.get('year') or '', f"{best.get('score'):.3f}", best.get('query') or '', best.get('result_count') or 0])
@@ -1881,13 +1883,15 @@ def main():
         skipped_items = []
 
     idx = start_index
+    total_items = len(items) + start_index
 
     try:
         for idx, item in enumerate(items, start=start_index + 1):
             title = item['title']
             year = item.get('year')
             score = item.get('score')
-            print(f'\n[{idx}/{len(items) + start_index}] Processing: {title} ({year})  -> score: {score}')
+            progress_pct = (idx / total_items) * 100
+            print(f'\n[{idx}/{total_items}] ({progress_pct:.1f}%) Processing: {title} ({year})  -> score: {score}')
 
             result = process_single_item(driver, ia, item, args, stats, skipped_items)
 
