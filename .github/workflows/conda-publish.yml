@@ -43,10 +43,10 @@ jobs:
           # 3. Export for meta.yaml
           export PKG_VERSION=$VERSION
 
-          echo "Building Conda package version: $VERSION"
+          echo "🚀 Building Conda package version: $VERSION"
 
           export PKG_VERSION=$VERSION
 
-          conda build . --output-folder dist
+          conda build . --output-folder dist -c conda-forge
 
           anaconda upload --label main dist/noarch/*.tar.bz2
