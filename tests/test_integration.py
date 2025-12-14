@@ -13,7 +13,7 @@ connection errors, wait 10-15 minutes before retrying.
 """
 
 import time
-from typing import Any
+from typing import Any, Optional
 
 import pytest
 
@@ -22,12 +22,12 @@ pytestmark = pytest.mark.integration
 
 # Module-level state to detect rate limiting
 _rate_limited = False
-_cached_movies: dict[str, Any] | None = None
+_cached_movies: Optional[dict[str, Any]] = None
 _last_request_time: float = 0
 
 # Configuration
 TEST_USER_ID = "861134"  # Known public test user with ratings
-REQUEST_TIMEOUT = 30  # seconds - if a request takes longer, assume rate limited
+REQUEST_TIMEOUT = 120  # seconds - increased from 30s since FilmAffinity can be slow
 MIN_REQUEST_INTERVAL = 2  # seconds between requests
 
 
@@ -46,7 +46,7 @@ def _throttle_request():
     _last_request_time = time.time()
 
 
-def _get_cached_movies() -> dict[str, Any] | None:
+def _get_cached_movies() -> Optional[dict[str, Any]]:
     """Get cached movies data, fetching once if needed.
 
     This fixture-like function ensures we only make ONE request to
@@ -92,13 +92,17 @@ def _get_cached_movies() -> dict[str, Any] | None:
 
     except (TimeoutError, Exception) as e:
         error_str = str(e).lower()
-        if "timeout" in error_str or "rate" in error_str or "429" in error_str:
+        # Only treat as rate limited if we get explicit rate limiting indicators
+        # Don't treat general timeouts as rate limiting since FilmAffinity can be slow
+        if "429" in error_str or "rate limit" in error_str or "too many requests" in error_str:
             _rate_limited = True
             pytest.skip(
                 f"FilmAffinity rate limiting detected: {e}\n"
                 "Wait 10-15 minutes before running integration tests again."
             )
-        raise
+        # For other errors (including timeouts), don't set rate_limited flag
+        # Just return None so individual tests can handle it
+        return None
 
 
 class TestFilmAffinityScraperIntegration:
