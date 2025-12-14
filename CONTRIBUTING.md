@@ -128,6 +128,29 @@ filmaffinity-backup/
 └── tests/              # Test files
 ```
 
+## Release Process
+
+Maintainers can use the automated workflows plus the included conda recipe to publish new versions.
+
+### 1. Prepare the Release
+
+- Update `CHANGELOG.md` with the upcoming version under the **Unreleased** section.
+- Make sure CI is green on `main` and rerun `pytest` / `pre-commit` locally if needed.
+- Confirm any new CLI flags or behaviours are reflected in `README.md` and docs.
+
+### 2. Bump the Version
+
+1. From the GitHub Actions tab, run the **Bump Version** workflow and pick `patch`, `minor`, or `major`.
+2. The workflow uses `bump-my-version` to update `pyproject.toml`, create a tag (`vX.Y.Z`), and push back to `main`.
+3. Wait for the workflow to finish before moving on; the tag it creates becomes the source for releases.
+
+### 3. Publish to PyPI, Docker and Anaconda
+
+- Create a GitHub Release from the freshly created tag with the changelog entry in the notes.
+- Publishing the release triggers the `Publish to PyPI` workflow (`.github/workflows/publish.yml`) which builds via `python -m build` and pushes to PyPI using trusted publishing.
+- The `Publish Docker Image` workflow picks up the same release to build and push a multi-arch image to `ghcr.io/oyale/filmaffinity-backup`.
+- The `Publish Conda Package` workflow picks up the same release to build and push the conda package to Anaconda.org.
+
 ## Questions?
 
 Feel free to open an issue for any questions. We're happy to help!
