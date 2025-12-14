@@ -52,7 +52,7 @@
 
 * [X] Add CodeQL security scanning
 * [X] Add Dependabot for dependency updates
-* [ ] Add automated PyPI publishing on release
+* [X] Add automated PyPI publishing on release
 * [X] Add coverage reporting (Codecov/Coveralls)
 
 ### Packaging
