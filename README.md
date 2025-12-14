@@ -1,6 +1,7 @@
 # FilmAffinity Backup & IMDb Uploader
 
 [![Tests](https://github.com/oyale/filmaffinity-backup/actions/workflows/main.yml/badge.svg)](https://github.com/oyale/filmaffinity-backup/actions/workflows/main.yml)
+[![codecov](https://codecov.io/gh/oyale/filmaffinity-backup/branch/main/graph/badge.svg)](https://codecov.io/gh/oyale/filmaffinity-backup)
 [![Python 3.9+](https://img.shields.io/badge/python-3.9+-blue.svg)](https://www.python.org/downloads/)
 [![License: AGPL v3](https://img.shields.io/badge/License-AGPL%20v3-blue.svg)](https://www.gnu.org/licenses/agpl-3.0)
 
