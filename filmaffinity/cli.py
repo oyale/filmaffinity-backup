@@ -24,7 +24,7 @@ from filmaffinity.scraper import (
     UserNotFoundError,
 )
 
-from .exporters import export_to_letterboxd
+from .exporters import export_to_json, export_to_letterboxd
 
 
 def get_app_version() -> str:
@@ -162,8 +162,8 @@ def backup(
     export_format: str = typer.Option(
         "csv",
         "--format",
-        help="Export format: 'csv' (default, semicolon-delimited) or 'letterboxd' (Letterboxd-compatible CSV)",
-        click_type=click.Choice(["csv", "letterboxd"]),
+        help="Export format: 'csv' (default, semicolon-delimited), 'letterboxd' (Letterboxd-compatible CSV), or 'json'",
+        click_type=click.Choice(["csv", "letterboxd", "json"]),
     ),
     quiet: bool = typer.Option(False, "--quiet", "-q", help="Minimal output, only show errors"),
 ):
@@ -270,11 +270,15 @@ def backup(
         df.to_csv(csv_path, sep=";", index=False)
         qprint(f"  [green]✓ Saved: {csv_path}[/green]")
 
-        # Additionally save Letterboxd format if requested
+        # Additionally save other formats if requested
         if export_format == "letterboxd":
             letterboxd_path = user_dir / f"{k}_letterboxd.csv"
             export_to_letterboxd(v, letterboxd_path)
             qprint(f"  [green]✓ Saved Letterboxd CSV: {letterboxd_path}[/green]")
+        elif export_format == "json":
+            json_path = user_dir / f"{k}.json"
+            export_to_json(v, json_path)
+            qprint(f"  [green]✓ Saved JSON: {json_path}[/green]")
 
     qprint(f"[green]✅ Backup complete! {len(data)} files saved.[/green]")
 
