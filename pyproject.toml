@@ -46,6 +46,11 @@ imdb = [
 dev = [
     "pytest>=7.0.0",
     "pytest-cov>=3.0.0",
+    "pre-commit>=3.5.0",
+    "ruff>=0.8.0",
+    "mypy>=1.13.0",
+    "types-requests>=2.31.0",
+    "types-beautifulsoup4>=4.12.0",
 ]
 all = [
     "filmaffinity-backup[imdb,dev]",
@@ -79,4 +84,25 @@ target-version = "py39"
 
 [tool.ruff.lint]
 select = ["E", "F", "W", "I", "N", "UP"]
-ignore = ["E501"]  # Line too long (handled by formatter)
+ignore = [
+    "E501",  # Line too long (handled by formatter)
+    "N812",  # Allow `expected_conditions as EC` (standard selenium convention)
+]
+
+[tool.ruff.lint.per-file-ignores]
+"imdb_uploader/uploader.py" = ["I001"]  # Allow out-of-order imports (workaround for circular imports)
+"tests/test_uploader.py" = ["E402"]  # Allow imports after mocking selenium
+
+[tool.mypy]
+python_version = "3.9"
+warn_return_any = false
+warn_unused_configs = true
+ignore_missing_imports = true
+strict_optional = false
+# Disable strict checks that would require extensive refactoring
+check_untyped_defs = false
+disallow_untyped_defs = false
+exclude = [
+    "tests/",
+    "scripts/",
+]

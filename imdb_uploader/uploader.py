@@ -22,26 +22,25 @@ Be careful: automated interactions with web services can violate terms of servic
 
 from __future__ import annotations
 
-import os
-import sys
-import re
-import time
-import json
 import argparse
 import csv
-import urllib.parse
 import difflib
+import json
+import os
+import re
+import sys
+import time
 import unicodedata
-from pathlib import Path
-from typing import TYPE_CHECKING, Any, Optional
+import urllib.parse
+from typing import TYPE_CHECKING, Any
 
 from selenium import webdriver
+from selenium.webdriver.chrome.service import Service as ChromeService
 from selenium.webdriver.common.by import By
 from selenium.webdriver.common.keys import Keys
-from selenium.webdriver.support.ui import WebDriverWait
 from selenium.webdriver.support import expected_conditions as EC
+from selenium.webdriver.support.ui import WebDriverWait
 from webdriver_manager.chrome import ChromeDriverManager
-from selenium.webdriver.chrome.service import Service as ChromeService
 
 if TYPE_CHECKING:
     from selenium.webdriver.chrome.webdriver import WebDriver
@@ -56,94 +55,89 @@ except ImportError:
         IMDbPYClient = None
 
 # Import from modular structure
-from .constants import (
-    DEFAULT_CONFIG,
-    DEFAULT_CONFIDENCE_THRESHOLD,
-    SKIP_AMBIGUOUS,
-    SKIP_NOT_FOUND,
-    SKIP_ALREADY_RATED,
-    SKIP_SAME_RATING,
-    SKIP_AUTO_RATE_FAILED,
-    SKIP_USER_CHOICE,
-    SKIP_REASON_TO_FILE,
-    SELECTOR_CAPTCHA_INDICATORS,
-    SELECTOR_SEARCH_RESULTS,
-    SELECTOR_USER_RATING_UNRATED,
-    SELECTOR_USER_RATING_SCORE,
-    SELECTOR_USER_RATING_SECTION,
-    SELECTOR_STAR_RATING_CLASS,
-    SELECTOR_RATE_BUTTON_OPTIONS,
-    SELECTOR_STAR_BUTTONS,
-    SELECTOR_SUBMIT_RATE_BUTTON,
-    SELECTOR_SUBMIT_BUTTON_FALLBACK,
-    SELECTOR_STARBAR,
-    SELECTOR_EMAIL_INPUT_OPTIONS,
-    SELECTOR_PASSWORD_INPUT_OPTIONS,
-    SELECTOR_CONTINUE_BUTTON,
-    SELECTOR_USER_MENU,
-    RATE_LIMIT_COOLDOWN_INITIAL,
-    RATE_LIMIT_COOLDOWN_MAX,
-    MAX_RETRIES,
-    DIRECTOR_LOOKUP_THRESHOLD,
-    DIRECTOR_FETCH_LIMIT,
-    DIRECTOR_FETCH_CANDIDATE_MIN_SCORE,
-    MovieItem,
-    SkippedEntry,
-    IMDbMatch,
-    Stats,
-)
 from .config import (
-    DEFAULT_CONFIG_PATHS,
+    SessionState,
     load_config,
     save_config,
-    create_default_config,
-    SessionState,
-    retry_on_http_error,
-    file_lock,
 )
+from .constants import (
+    DEFAULT_CONFIDENCE_THRESHOLD,
+    DIRECTOR_FETCH_CANDIDATE_MIN_SCORE,
+    DIRECTOR_FETCH_LIMIT,
+    DIRECTOR_LOOKUP_THRESHOLD,
+    MAX_RETRIES,
+    RATE_LIMIT_COOLDOWN_INITIAL,
+    RATE_LIMIT_COOLDOWN_MAX,
+    SELECTOR_CAPTCHA_INDICATORS,
+    SELECTOR_RATE_BUTTON_OPTIONS,
+    SELECTOR_SEARCH_RESULTS,
+    SELECTOR_STAR_BUTTONS,
+    SELECTOR_STAR_RATING_CLASS,
+    SELECTOR_STARBAR,
+    SELECTOR_SUBMIT_BUTTON_FALLBACK,
+    SELECTOR_SUBMIT_RATE_BUTTON,
+    SELECTOR_USER_RATING_SCORE,
+    SELECTOR_USER_RATING_SECTION,
+    SELECTOR_USER_RATING_UNRATED,
+    SKIP_ALREADY_RATED,
+    SKIP_AMBIGUOUS,
+    SKIP_AUTO_RATE_FAILED,
+    SKIP_NOT_FOUND,
+    SKIP_REASON_TO_FILE,
+    SKIP_SAME_RATING,
+    SKIP_USER_CHOICE,
+    IMDbMatch,
+    MovieItem,
+    SkippedEntry,
+    Stats,
+)
+from .csv_validator import validate_csv_format
 from .prompts import (
     beep,
-    set_beep_enabled,
-    parse_imdb_id,
-    prompt_existing_rating,
     prompt_confirm_match,
-    prompt_low_confidence_match,
+    prompt_existing_rating,
     prompt_select_candidate,
+    set_beep_enabled,
 )
-from .csv_validator import validate_csv_format, ValidationResult
-
 
 # =============================================================================
 # Custom Exceptions
 # =============================================================================
 
+
 class UploadIMDbError(Exception):
     """Base exception for upload_imdb errors."""
+
     pass
 
 
 class BrowserStartError(UploadIMDbError):
     """Raised when the browser cannot be started."""
+
     pass
 
 
 class LoginError(UploadIMDbError):
     """Raised when login fails."""
+
     pass
 
 
 class RatingError(UploadIMDbError):
     """Raised when rating a movie fails."""
+
     pass
 
 
 class CSVParseError(UploadIMDbError):
     """Raised when CSV parsing fails."""
+
     pass
 
 
 class IMDbSearchError(UploadIMDbError):
     """Raised when IMDb search fails."""
+
     pass
 
 
@@ -151,8 +145,8 @@ class IMDbSearchError(UploadIMDbError):
 # CSV and File Functions
 # =============================================================================
 
-# Import CSV constants from constants.py
-from .constants import CSV_FIELDNAMES, CSV_FIELDNAMES_WITH_REASON, RETRY_CATEGORY_TO_FILE
+# Import CSV constants from constants.py (must be after custom exceptions are defined)
+from .constants import CSV_FIELDNAMES, CSV_FIELDNAMES_WITH_REASON, RETRY_CATEGORY_TO_FILE  # noqa: E402
 
 
 def read_csv(path: str) -> list[MovieItem]:
@@ -170,29 +164,47 @@ def read_csv(path: str) -> list[MovieItem]:
         - Skips rows with empty titles.
     """
     items = []
-    with open(path, newline='', encoding='utf-8') as fh:
-        reader = csv.DictReader(fh, delimiter=';')
+    with open(path, newline="", encoding="utf-8") as fh:
+        reader = csv.DictReader(fh, delimiter=";")
         for raw_row in reader:
             # normalize keys: strip, lower-case and remove BOM if present
             row = {}
             for k, v in raw_row.items():
                 if k is None:
                     continue
-                key = k.strip().lower().lstrip('\ufeff')
+                key = k.strip().lower().lstrip("\ufeff")
                 row[key] = v
             # Expect column 'title', 'year', 'user score'
-            title = (row.get('title') or row.get('titulo') or '').strip()
-            year = (row.get('year') or row.get('anio') or row.get('año') or '').strip()
-            score = row.get('user score') or row.get('user_score') or row.get('userscore') or row.get('puntuacion')
+            title = (row.get("title") or row.get("titulo") or "").strip()
+            year = (row.get("year") or row.get("anio") or row.get("año") or "").strip()
+            score = (
+                row.get("user score")
+                or row.get("user_score")
+                or row.get("userscore")
+                or row.get("puntuacion")
+            )
             if not title:
                 continue
             try:
-                scorev = int(float(str(score).replace(',', '.')))
+                scorev = int(float(str(score).replace(",", ".")))
             except (ValueError, TypeError, AttributeError):
                 scorev = None
-            directors = (row.get('directors') or row.get('director') or '')
-            original_title = (row.get('original title') or row.get('original_title') or row.get('originaltitle') or '').strip()
-            items.append({'title': title, 'year': year, 'score': scorev, 'directors': (directors or '').strip(), 'original_title': original_title})
+            directors = row.get("directors") or row.get("director") or ""
+            original_title = (
+                row.get("original title")
+                or row.get("original_title")
+                or row.get("originaltitle")
+                or ""
+            ).strip()
+            items.append(
+                {
+                    "title": title,
+                    "year": year,
+                    "score": scorev,
+                    "directors": (directors or "").strip(),
+                    "original_title": original_title,
+                }
+            )
     if not items:
         print(f"read_csv: no items parsed from {path}. Detected header fields: {reader.fieldnames}")
     return items
@@ -215,19 +227,19 @@ def normalize_text(s: str) -> str:
         'amelie'
     """
     if not s:
-        return ''
+        return ""
     s = s.strip().lower()
     # remove accents
-    s = unicodedata.normalize('NFD', s)
-    s = ''.join(ch for ch in s if unicodedata.category(ch) != 'Mn')
+    s = unicodedata.normalize("NFD", s)
+    s = "".join(ch for ch in s if unicodedata.category(ch) != "Mn")
     # remove punctuation
-    s = ''.join(ch if ch.isalnum() or ch.isspace() else ' ' for ch in s)
+    s = "".join(ch if ch.isalnum() or ch.isspace() else " " for ch in s)
     # remove common Spanish leading articles to help matching
-    for prefix in ('el ', 'la ', "los ", "las ", "un ", "una "):
+    for prefix in ("el ", "la ", "los ", "las ", "un ", "una "):
         if s.startswith(prefix):
-            s = s[len(prefix):]
+            s = s[len(prefix) :]
             break
-    s = ' '.join(s.split())
+    s = " ".join(s.split())
     return s
 
 
@@ -237,12 +249,12 @@ def normalize_text(s: str) -> str:
 
 def find_imdb_match(
     title: str,
-    year: Optional[str] = None,
+    year: str | None = None,
     ia: Any = None,
-    director: Optional[str] = None,
-    original_title: Optional[str] = None,
-    topn: int = 6
-) -> Optional[IMDbMatch]:
+    director: str | None = None,
+    original_title: str | None = None,
+    topn: int = 6,
+) -> IMDbMatch | None:
     """Use IMDbPY (if available) to search `title` and return the best candidate.
     This version minimizes network calls: it computes title+year confidence first and
     only fetches candidate details (via `ia.update`) to read directors when the
@@ -266,11 +278,11 @@ def find_imdb_match(
         if year:
             queries.append(f"{original_title} {year}")
 
-    raw = title or ''
+    raw = title or ""
     queries.append(raw)
     # remove parenthetical parts: e.g. 'Pride (Orgullo)' -> 'Pride'
-    if '(' in raw:
-        queries.append(raw.split('(')[0].strip())
+    if "(" in raw:
+        queries.append(raw.split("(")[0].strip())
     # normalized (no accents)
     norm = normalize_text(raw)
     if norm and norm != raw:
@@ -284,7 +296,7 @@ def find_imdb_match(
 
     seen = set()
     best = None
-    all_candidates = []  # Store all candidates for user selection
+    all_candidates: list[dict[str, Any]] = []  # Store all candidates for user selection
     cooldown_seconds = RATE_LIMIT_COOLDOWN_INITIAL
 
     for q in queries:
@@ -313,18 +325,20 @@ def find_imdb_match(
                 error_str = str(e).lower()
                 # Check for HTTP errors (500, 503, etc.) or rate limiting
                 is_http_error = (
-                    'http error 5' in error_str or
-                    '500' in error_str or
-                    '503' in error_str or
-                    'internal server error' in error_str or
-                    'service unavailable' in error_str or
-                    'too many requests' in error_str or
-                    '429' in error_str or
-                    'httperror' in error_str
+                    "http error 5" in error_str
+                    or "500" in error_str
+                    or "503" in error_str
+                    or "internal server error" in error_str
+                    or "service unavailable" in error_str
+                    or "too many requests" in error_str
+                    or "429" in error_str
+                    or "httperror" in error_str
                 )
 
                 if is_http_error and attempt < MAX_RETRIES - 1:
-                    print(f"[imdbpy] ⚠️  HTTP error detected, cooling down for {cooldown_seconds}s before retry ({attempt + 1}/{MAX_RETRIES})...")
+                    print(
+                        f"[imdbpy] ⚠️  HTTP error detected, cooling down for {cooldown_seconds}s before retry ({attempt + 1}/{MAX_RETRIES})..."
+                    )
                     time.sleep(cooldown_seconds)
                     # Exponential backoff
                     cooldown_seconds = min(cooldown_seconds * 2, RATE_LIMIT_COOLDOWN_MAX)
@@ -339,13 +353,13 @@ def find_imdb_match(
 
         # First pass: compute base score using title (and year boost) only
         candidates = []  # list of dicts: {cand, cand_title, cand_year, base_score, has_director_info}
-        for cand in results[:max(topn, 10)]:
+        for cand in results[: max(topn, 10)]:
             try:
-                cand_title = cand.get('title') or ''
-                cand_year = str(cand.get('year') or '')
+                cand_title = cand.get("title") or ""
+                cand_year = str(cand.get("year") or "")
             except Exception:
-                cand_title = ''
-                cand_year = ''
+                cand_title = ""
+                cand_year = ""
             cnorm = normalize_text(cand_title)
             base_score = difflib.SequenceMatcher(None, qnorm, cnorm).ratio()
             # boost if year matches
@@ -364,93 +378,113 @@ def find_imdb_match(
             has_director_info = False
             cand_directors_list = []
             try:
-                d = cand.get('director') or cand.get('directors') or None
+                d = cand.get("director") or cand.get("directors") or None
                 if d:
                     has_director_info = True
                     if isinstance(d, list):
                         for person in d:
-                            cand_directors_list.append(person.get('name') if hasattr(person, 'get') else str(person))
+                            cand_directors_list.append(
+                                person.get("name") if hasattr(person, "get") else str(person)
+                            )
                     else:
-                        cand_directors_list.append(d.get('name') if hasattr(d, 'get') else str(d))
+                        cand_directors_list.append(d.get("name") if hasattr(d, "get") else str(d))
             except Exception:
                 has_director_info = False
 
             candidate_entry = {
-                'cand': cand,
-                'title': cand_title,
-                'year': cand_year,
-                'base_score': base_score,
-                'has_dir': has_director_info,
-                'directors': ', '.join(cand_directors_list) if cand_directors_list else '',
-                'movieID': cand.movieID if hasattr(cand, 'movieID') else None
+                "cand": cand,
+                "title": cand_title,
+                "year": cand_year,
+                "base_score": base_score,
+                "has_dir": has_director_info,
+                "directors": ", ".join(cand_directors_list) if cand_directors_list else "",
+                "movieID": cand.movieID if hasattr(cand, "movieID") else None,
             }
             candidates.append(candidate_entry)
 
             # Also add to all_candidates for user selection (avoid duplicates by movieID)
-            if candidate_entry['movieID'] and not any(c['movieID'] == candidate_entry['movieID'] for c in all_candidates):
+            if candidate_entry["movieID"] and not any(
+                c["movieID"] == candidate_entry["movieID"] for c in all_candidates
+            ):
                 all_candidates.append(candidate_entry)
 
             # keep a quick best based on base_score
-            if best is None or base_score > best['score']:
-                best = {'movieID': cand.movieID if hasattr(cand, 'movieID') else None,
-                        'title': cand_title,
-                        'year': cand_year,
-                        'score': base_score,
-                        'query': q,
-                        'result_count': len(results)}
+            if best is None or base_score > best["score"]:
+                best = {
+                    "movieID": cand.movieID if hasattr(cand, "movieID") else None,
+                    "title": cand_title,
+                    "year": cand_year,
+                    "score": base_score,
+                    "query": q,
+                    "result_count": len(results),
+                }
 
         # If title+year alone is confident enough, skip director lookups
-        if best and best['score'] >= DIRECTOR_LOOKUP_THRESHOLD:
-            print(f"[imdbpy] high confidence ({best['score']:.3f}) from title+year; skipping director fetchs")
-            best['candidates'] = sorted(all_candidates, key=lambda x: x['base_score'], reverse=True)[:10]
+        if best and best["score"] >= DIRECTOR_LOOKUP_THRESHOLD:
+            print(
+                f"[imdbpy] high confidence ({best['score']:.3f}) from title+year; skipping director fetchs"
+            )
+            best["candidates"] = sorted(
+                all_candidates, key=lambda x: x["base_score"], reverse=True
+            )[:10]
             return best
 
         # If director is provided, try to improve score by fetching directors for top candidates
         if director:
             dnorm = normalize_text(director)
             # sort candidates by base_score desc and fetch limited number
-            candidates_sorted = sorted(candidates, key=lambda x: x['base_score'], reverse=True)
+            candidates_sorted = sorted(candidates, key=lambda x: x["base_score"], reverse=True)
             fetch_count = 0
             for entry in candidates_sorted:
                 if fetch_count >= DIRECTOR_FETCH_LIMIT:
                     break
-                if entry['base_score'] < DIRECTOR_FETCH_CANDIDATE_MIN_SCORE:
+                if entry["base_score"] < DIRECTOR_FETCH_CANDIDATE_MIN_SCORE:
                     break
-                cand = entry['cand']
+                cand = entry["cand"]
                 cand_directors = []
 
                 # if search result already included directors, use them first
                 try:
-                    d = cand.get('director') or cand.get('directors') or None
+                    d = cand.get("director") or cand.get("directors") or None
                     if d:
                         if isinstance(d, list):
                             for person in d:
-                                cand_directors.append(person.get('name') if hasattr(person, 'get') else str(person))
+                                cand_directors.append(
+                                    person.get("name") if hasattr(person, "get") else str(person)
+                                )
                         else:
-                            cand_directors.append(d.get('name') if hasattr(d, 'get') else str(d))
+                            cand_directors.append(d.get("name") if hasattr(d, "get") else str(d))
                     else:
                         # otherwise fetch details (network call) with retry on HTTP errors
                         for update_attempt in range(2):
                             try:
-                                print(f"[imdbpy] fetching details for candidate {getattr(cand, 'movieID', '<unknown>')} to read directors")
+                                print(
+                                    f"[imdbpy] fetching details for candidate {getattr(cand, 'movieID', '<unknown>')} to read directors"
+                                )
                                 ia.update(cand)
                                 fetch_count += 1
-                                d2 = cand.get('director') or cand.get('directors')
+                                d2 = cand.get("director") or cand.get("directors")
                                 if d2:
                                     if isinstance(d2, list):
                                         for p in d2:
-                                            cand_directors.append(p.get('name') if hasattr(p, 'get') else str(p))
+                                            cand_directors.append(
+                                                p.get("name") if hasattr(p, "get") else str(p)
+                                            )
                                     else:
-                                        cand_directors.append(d2.get('name') if hasattr(d2, 'get') else str(d2))
+                                        cand_directors.append(
+                                            d2.get("name") if hasattr(d2, "get") else str(d2)
+                                        )
                                 break  # Success
                             except Exception as update_err:
                                 error_str = str(update_err).lower()
                                 is_http_error = (
-                                    'http error 5' in error_str or '500' in error_str or
-                                    '503' in error_str or 'httperror' in error_str
+                                    "http error 5" in error_str
+                                    or "500" in error_str
+                                    or "503" in error_str
+                                    or "httperror" in error_str
                                 )
                                 if is_http_error and update_attempt == 0:
-                                    print(f"[imdbpy] ⚠️  HTTP error on update, cooling down 5s...")
+                                    print("[imdbpy] ⚠️  HTTP error on update, cooling down 5s...")
                                     time.sleep(5)
                                 else:
                                     break  # Give up after retry
@@ -473,26 +507,30 @@ def find_imdb_match(
                             elif sim > 0.6:
                                 director_boost = max(director_boost, 0.15)
 
-                total_score = entry['base_score'] + director_boost
+                total_score = entry["base_score"] + director_boost
                 # Update entry with director info if we fetched it
-                if cand_directors and not entry['directors']:
-                    entry['directors'] = ', '.join(cand_directors)
+                if cand_directors and not entry["directors"]:
+                    entry["directors"] = ", ".join(cand_directors)
 
-                if total_score > best['score']:
-                    best = {'movieID': cand.movieID if hasattr(cand, 'movieID') else None,
-                            'title': entry['title'],
-                            'year': entry['year'],
-                            'score': total_score,
-                            'query': q,
-                            'result_count': len(results)}
+                if total_score > best["score"]:
+                    best = {
+                        "movieID": cand.movieID if hasattr(cand, "movieID") else None,
+                        "title": entry["title"],
+                        "year": entry["year"],
+                        "score": total_score,
+                        "query": q,
+                        "result_count": len(results),
+                    }
 
         # If we already have a pretty good match, stop early
-        if best and best['score'] >= DIRECTOR_LOOKUP_THRESHOLD:
+        if best and best["score"] >= DIRECTOR_LOOKUP_THRESHOLD:
             break
 
     # Add candidates to best result for user selection in ambiguous cases
     if best:
-        best['candidates'] = sorted(all_candidates, key=lambda x: x['base_score'], reverse=True)[:10]
+        best["candidates"] = sorted(all_candidates, key=lambda x: x["base_score"], reverse=True)[
+            :10
+        ]
     return best
 
 
@@ -519,10 +557,10 @@ def start_driver(headless: bool = False) -> WebDriver:
     """
     options = webdriver.ChromeOptions()
     if headless:
-        options.add_argument('--headless=new')
-        options.add_argument('--disable-gpu')
-    options.add_argument('--no-sandbox')
-    options.add_argument('--disable-dev-shm-usage')
+        options.add_argument("--headless=new")
+        options.add_argument("--disable-gpu")
+    options.add_argument("--no-sandbox")
+    options.add_argument("--disable-dev-shm-usage")
 
     # Try multiple approaches to start Chrome
     driver = None
@@ -530,9 +568,10 @@ def start_driver(headless: bool = False) -> WebDriver:
     # Approach 1: Use webdriver-manager with Chrome for Testing (CfT) for Chrome 115+
     try:
         from webdriver_manager.core.os_manager import ChromeType
+
         driver = webdriver.Chrome(
             service=ChromeService(ChromeDriverManager(chrome_type=ChromeType.CHROMIUM).install()),
-            options=options
+            options=options,
         )
     except Exception:
         pass
@@ -541,8 +580,7 @@ def start_driver(headless: bool = False) -> WebDriver:
     if driver is None:
         try:
             driver = webdriver.Chrome(
-                service=ChromeService(ChromeDriverManager().install()),
-                options=options
+                service=ChromeService(ChromeDriverManager().install()), options=options
             )
         except Exception:
             pass
@@ -571,7 +609,9 @@ def wait_for_login_manual(driver: WebDriver) -> None:
         driver: The WebDriver instance with IMDb page open.
     """
     beep()
-    print('Please sign in on the opened IMDb browser window. When done, press Enter in this terminal to continue...')
+    print(
+        "Please sign in on the opened IMDb browser window. When done, press Enter in this terminal to continue..."
+    )
     input()
 
 
@@ -583,9 +623,9 @@ def try_automated_login(driver: WebDriver, username: str, password: str, timeout
     This function specifically targets the "Sign in with IMDb" option.
     """
     # Go to the IMDb signin page
-    driver.get('https://www.imdb.com/registration/signin')
+    driver.get("https://www.imdb.com/registration/signin")
     try:
-        WebDriverWait(driver, 10).until(EC.presence_of_element_located((By.TAG_NAME, 'body')))
+        WebDriverWait(driver, 10).until(EC.presence_of_element_located((By.TAG_NAME, "body")))
         time.sleep(2)
 
         # Step 0: Check if we're on the "Sign in to existing account" vs "Create new account" page
@@ -594,10 +634,12 @@ def try_automated_login(driver: WebDriver, username: str, password: str, timeout
         try:
             existing_account_btn = None
             # Look for the button with text "Sign in to an existing account"
-            buttons = driver.find_elements(By.CSS_SELECTOR, "button.ipc-btn, button[class*='ipc-btn'], a.ipc-btn")
+            buttons = driver.find_elements(
+                By.CSS_SELECTOR, "button.ipc-btn, button[class*='ipc-btn'], a.ipc-btn"
+            )
             for btn in buttons:
                 btn_text = btn.text.lower()
-                if btn.is_displayed() and 'existing account' in btn_text:
+                if btn.is_displayed() and "existing account" in btn_text:
                     existing_account_btn = btn
                     break
 
@@ -605,7 +647,7 @@ def try_automated_login(driver: WebDriver, username: str, password: str, timeout
             if not existing_account_btn:
                 spans = driver.find_elements(By.XPATH, "//span[contains(@class, 'ipc-btn__text')]")
                 for span in spans:
-                    if 'existing account' in span.text.lower():
+                    if "existing account" in span.text.lower():
                         # Click the parent button
                         existing_account_btn = span.find_element(By.XPATH, "./..")
                         break
@@ -622,16 +664,18 @@ def try_automated_login(driver: WebDriver, username: str, password: str, timeout
         imdb_signin_clicked = False
 
         # Method 1: Look for button/link with text "IMDb" (case insensitive)
-        provider_buttons = driver.find_elements(By.CSS_SELECTOR,
-            ".auth-provider-button, a.list-group-item, .auth-provider, a[href*='imdb_us']")
+        provider_buttons = driver.find_elements(
+            By.CSS_SELECTOR,
+            ".auth-provider-button, a.list-group-item, .auth-provider, a[href*='imdb_us']",
+        )
         for btn in provider_buttons:
             try:
                 btn_text = btn.text.lower()
-                btn_href = (btn.get_attribute('href') or '').lower()
+                btn_href = (btn.get_attribute("href") or "").lower()
                 # Look for IMDb-specific login (not Amazon)
-                if btn.is_displayed() and ('imdb' in btn_text or 'imdb_us' in btn_href):
+                if btn.is_displayed() and ("imdb" in btn_text or "imdb_us" in btn_href):
                     # Make sure it's not Amazon
-                    if 'amazon' not in btn_text and 'amazon' not in btn_href:
+                    if "amazon" not in btn_text and "amazon" not in btn_href:
                         print(f"  [debug] Found IMDb sign-in button: {btn_text[:50]}")
                         btn.click()
                         imdb_signin_clicked = True
@@ -645,9 +689,9 @@ def try_automated_login(driver: WebDriver, username: str, password: str, timeout
             try:
                 imdb_links = driver.find_elements(By.PARTIAL_LINK_TEXT, "IMDb")
                 for link in imdb_links:
-                    href = (link.get_attribute('href') or '').lower()
-                    if link.is_displayed() and 'amazon' not in href:
-                        print(f"  [debug] Found IMDb link by text")
+                    href = (link.get_attribute("href") or "").lower()
+                    if link.is_displayed() and "amazon" not in href:
+                        print("  [debug] Found IMDb link by text")
                         link.click()
                         imdb_signin_clicked = True
                         time.sleep(2)
@@ -661,9 +705,11 @@ def try_automated_login(driver: WebDriver, username: str, password: str, timeout
                 # IMDb account login typically goes through a different URL pattern
                 all_links = driver.find_elements(By.TAG_NAME, "a")
                 for link in all_links:
-                    href = link.get_attribute('href') or ''
+                    href = link.get_attribute("href") or ""
                     text = link.text.lower()
-                    if link.is_displayed() and ('imdb_us' in href or ('imdb' in text and 'amazon' not in text)):
+                    if link.is_displayed() and (
+                        "imdb_us" in href or ("imdb" in text and "amazon" not in text)
+                    ):
                         print(f"  [debug] Found IMDb auth link: {href[:80]}")
                         link.click()
                         imdb_signin_clicked = True
@@ -677,8 +723,12 @@ def try_automated_login(driver: WebDriver, username: str, password: str, timeout
 
         # Wait for the login form (IMDb or Amazon form)
         WebDriverWait(driver, 10).until(
-            EC.presence_of_element_located((By.CSS_SELECTOR,
-                "input[name='email'], input#ap_email, input[type='email'], input[name='username']"))
+            EC.presence_of_element_located(
+                (
+                    By.CSS_SELECTOR,
+                    "input[name='email'], input#ap_email, input[type='email'], input[name='username']",
+                )
+            )
         )
         time.sleep(1)
 
@@ -688,7 +738,7 @@ def try_automated_login(driver: WebDriver, username: str, password: str, timeout
             "input#ap_email",
             "input[type='email']",
             "input[name='username']",
-            "input#email"
+            "input#email",
         ]
         email_input = None
         for sel in email_selectors:
@@ -700,11 +750,13 @@ def try_automated_login(driver: WebDriver, username: str, password: str, timeout
         if email_input:
             email_input.clear()
             email_input.send_keys(username)
-            print(f"  [debug] Entered username/email")
+            print("  [debug] Entered username/email")
 
         # Look for continue button or direct login form
-        continue_btn = driver.find_elements(By.CSS_SELECTOR,
-            "input#continue, input[type='submit'], button[type='submit'], .auth-button")
+        continue_btn = driver.find_elements(
+            By.CSS_SELECTOR,
+            "input#continue, input[type='submit'], button[type='submit'], .auth-button",
+        )
         if continue_btn:
             for btn in continue_btn:
                 if btn.is_displayed():
@@ -717,7 +769,7 @@ def try_automated_login(driver: WebDriver, username: str, password: str, timeout
             "input[name='password']",
             "input#ap_password",
             "input[type='password']",
-            "input#password"
+            "input#password",
         ]
         pwd_input = None
         for sel in pwd_selectors:
@@ -729,7 +781,7 @@ def try_automated_login(driver: WebDriver, username: str, password: str, timeout
         if pwd_input:
             pwd_input.clear()
             pwd_input.send_keys(password)
-            print(f"  [debug] Entered password")
+            print("  [debug] Entered password")
 
             # Submit the form
             pwd_input.send_keys(Keys.RETURN)
@@ -739,28 +791,35 @@ def try_automated_login(driver: WebDriver, username: str, password: str, timeout
             captcha_detected = detect_captcha(driver)
             if captcha_detected:
                 beep()
-                print("\n" + "="*60)
+                print("\n" + "=" * 60)
                 print("🔒 CAPTCHA DETECTED")
-                print("="*60)
+                print("=" * 60)
                 print("  A CAPTCHA challenge has appeared.")
                 print("  Please solve it in the browser window.")
                 input("  Press Enter here once you've completed the CAPTCHA...")
                 time.sleep(2)
 
             # Check if we're logged in by looking for user menu
-            user_menu = driver.find_elements(By.CSS_SELECTOR,
+            user_menu = driver.find_elements(
+                By.CSS_SELECTOR,
                 ".imdb-header__account-toggle, .nav__user-menu, [data-testid='nav-link-logged-in'], "
-                ".navbar__user, .ipc-button[aria-label*='Account']")
+                ".navbar__user, .ipc-button[aria-label*='Account']",
+            )
             if user_menu:
                 print("  [debug] Login appears successful (found user menu)")
                 return True
 
             # Also check if we're on the IMDb homepage (sometimes login redirects there)
-            if 'imdb.com' in driver.current_url and 'signin' not in driver.current_url.lower():
+            if "imdb.com" in driver.current_url and "signin" not in driver.current_url.lower():
                 # Double check by looking for sign-in link (if present, we're not logged in)
-                signin_links = driver.find_elements(By.CSS_SELECTOR,
-                    "a[href*='signin'], a[href*='registration']")
-                visible_signin = [l for l in signin_links if l.is_displayed() and 'sign in' in l.text.lower()]
+                signin_links = driver.find_elements(
+                    By.CSS_SELECTOR, "a[href*='signin'], a[href*='registration']"
+                )
+                visible_signin = [
+                    link
+                    for link in signin_links
+                    if link.is_displayed() and "sign in" in link.text.lower()
+                ]
                 if not visible_signin:
                     print("  [debug] Login appears successful (no sign-in link visible)")
                     return True
@@ -789,15 +848,15 @@ def detect_captcha(driver: WebDriver) -> bool:
 
     # Also check page text for CAPTCHA-related messages
     try:
-        page_text = driver.find_element(By.TAG_NAME, 'body').text.lower()
+        page_text = driver.find_element(By.TAG_NAME, "body").text.lower()
         captcha_phrases = [
-            'enter the characters',
-            'solve this puzzle',
-            'verify you are human',
-            'security check',
-            'type the characters',
-            'captcha',
-            'robot'
+            "enter the characters",
+            "solve this puzzle",
+            "verify you are human",
+            "security check",
+            "type the characters",
+            "captcha",
+            "robot",
         ]
         for phrase in captcha_phrases:
             if phrase in page_text:
@@ -808,7 +867,7 @@ def detect_captcha(driver: WebDriver) -> bool:
     return False
 
 
-def imdb_search_and_open(driver: WebDriver, title: str, year: Optional[str] = None) -> bool:
+def imdb_search_and_open(driver: WebDriver, title: str, year: str | None = None) -> bool:
     """Search IMDb for a title and open the first result.
 
     Args:
@@ -823,11 +882,13 @@ def imdb_search_and_open(driver: WebDriver, title: str, year: Optional[str] = No
     if year:
         query = f"{title} {year}"
     q = urllib.parse.quote_plus(query)
-    url = f'https://www.imdb.com/find?q={q}&s=tt&ttype=ft&ref_=fn_ft'
+    url = f"https://www.imdb.com/find?q={q}&s=tt&ttype=ft&ref_=fn_ft"
     driver.get(url)
     try:
         # Wait for results
-        WebDriverWait(driver, 10).until(EC.presence_of_element_located((By.CSS_SELECTOR, 'table.findList, .findSection')))
+        WebDriverWait(driver, 10).until(
+            EC.presence_of_element_located((By.CSS_SELECTOR, "table.findList, .findSection"))
+        )
         # Try to click the first result link in titles list
         for sel in SELECTOR_SEARCH_RESULTS:
             elems = driver.find_elements(By.CSS_SELECTOR, sel)
@@ -840,7 +901,7 @@ def imdb_search_and_open(driver: WebDriver, title: str, year: Optional[str] = No
     return False
 
 
-def get_existing_rating(driver: WebDriver, debug: bool = False) -> Optional[int]:
+def get_existing_rating(driver: WebDriver, debug: bool = False) -> int | None:
     """Check if the movie is already rated by the user on IMDb.
 
     Args:
@@ -854,7 +915,6 @@ def get_existing_rating(driver: WebDriver, debug: bool = False) -> Optional[int]
         This function is conservative to avoid false positives - it only returns
         a rating when there's high confidence the user has actually rated the movie.
     """
-    import re
     try:
         # IMDb 2024+ layout: The user rating section uses data-testid attributes:
         # - "hero-rating-bar__user-rating__unrated" when NOT rated (shows "Rate" button)
@@ -893,7 +953,7 @@ def get_existing_rating(driver: WebDriver, debug: bool = False) -> Optional[int]
         # If the section just says "Rate" or "YOUR RATING\nRate", user hasn't rated
         # A rated movie shows "YOUR RATING\n8" or similar
         section_lower = section_text.lower()
-        if section_lower in ('rate', 'your rating\nrate', 'your rating rate'):
+        if section_lower in ("rate", "your rating\nrate", "your rating rate"):
             if debug:
                 print("  [debug] Section shows 'Rate' - not rated")
             return None
@@ -901,9 +961,7 @@ def get_existing_rating(driver: WebDriver, debug: bool = False) -> Optional[int]
         # Method 1: Look for the blue star rating number specifically
         # When rated, there's a span with class containing 'ipc-rating-star--rating'
         # that shows just the number (e.g., "8")
-        star_rating_elems = user_section.find_elements(
-            By.XPATH, SELECTOR_STAR_RATING_CLASS
-        )
+        star_rating_elems = user_section.find_elements(By.XPATH, SELECTOR_STAR_RATING_CLASS)
         for elem in star_rating_elems:
             text = elem.text.strip()
             if debug:
@@ -918,14 +976,16 @@ def get_existing_rating(driver: WebDriver, debug: bool = False) -> Optional[int]
         # Method 2: Check aria-label on the rating button
         buttons = user_section.find_elements(By.XPATH, ".//button")
         for btn in buttons:
-            aria = btn.get_attribute('aria-label') or ''
+            aria = btn.get_attribute("aria-label") or ""
             if debug:
                 print(f"  [debug] Button aria-label: {aria!r}")
             # Look for "Your rating: 8" or "Rated 8" pattern
             # Avoid matching "Rate this" or "Click to rate"
             aria_lower = aria.lower()
-            if ('your rating' in aria_lower or 'rated' in aria_lower) and 'rate this' not in aria_lower:
-                match = re.search(r'(?:your rating|rated)[:\s]+(\d+)', aria_lower)
+            if (
+                "your rating" in aria_lower or "rated" in aria_lower
+            ) and "rate this" not in aria_lower:
+                match = re.search(r"(?:your rating|rated)[:\s]+(\d+)", aria_lower)
                 if match:
                     rating = int(match.group(1))
                     if 1 <= rating <= 10:
@@ -935,14 +995,14 @@ def get_existing_rating(driver: WebDriver, debug: bool = False) -> Optional[int]
 
         # Method 3: Parse the section text more carefully
         # Look for pattern like "YOUR RATING\n8" where 8 is on its own line
-        lines = section_text.split('\n')
+        lines = section_text.split("\n")
         if debug:
             print(f"  [debug] Section lines: {lines}")
 
         for line in lines:
             line = line.strip()
             # Skip common non-rating text
-            if line.lower() in ('your rating', 'rate', ''):
+            if line.lower() in ("your rating", "rate", ""):
                 continue
             # If we find a standalone number 1-10, that's likely the rating
             if line.isdigit():
@@ -995,7 +1055,7 @@ def try_rate_on_page(driver: WebDriver, score: int) -> bool:
                 try:
                     if btn.is_displayed():
                         js_click(btn)
-                        print(f"  [debug] Opened rating modal")
+                        print("  [debug] Opened rating modal")
                         time.sleep(1.5)
                         modal_opened = True
                         break
@@ -1051,10 +1111,10 @@ def try_rate_on_page(driver: WebDriver, score: int) -> bool:
         for btn in rate_buttons:
             try:
                 if btn.is_displayed() and btn.is_enabled():
-                    print(f"  [debug] Found Rate button with class 'ipc-rating-prompt__rate-button'")
+                    print("  [debug] Found Rate button with class 'ipc-rating-prompt__rate-button'")
                     js_click(btn)
                     submit_clicked = True
-                    print(f"  [debug] Clicked Rate submit button")
+                    print("  [debug] Clicked Rate submit button")
                     time.sleep(1)
                     break
             except Exception:
@@ -1066,17 +1126,17 @@ def try_rate_on_page(driver: WebDriver, score: int) -> bool:
             for btn in all_buttons:
                 try:
                     btn_text = btn.text.strip()
-                    aria_label = btn.get_attribute('aria-label') or ''
+                    aria_label = btn.get_attribute("aria-label") or ""
 
                     # Skip star rating buttons (they have aria-label like "Rate 7")
-                    if aria_label.startswith('Rate ') and aria_label.split()[-1].isdigit():
+                    if aria_label.startswith("Rate ") and aria_label.split()[-1].isdigit():
                         continue
 
                     # Look for the submit button - it just says "Rate"
-                    if btn_text.lower() == 'rate' and btn.is_displayed() and btn.is_enabled():
+                    if btn_text.lower() == "rate" and btn.is_displayed() and btn.is_enabled():
                         js_click(btn)
                         submit_clicked = True
-                        print(f"  [debug] Clicked Rate button (text match)")
+                        print("  [debug] Clicked Rate button (text match)")
                         time.sleep(1)
                         break
                 except Exception:
@@ -1087,10 +1147,10 @@ def try_rate_on_page(driver: WebDriver, score: int) -> bool:
             prompt_buttons = driver.find_elements(By.CSS_SELECTOR, SELECTOR_SUBMIT_BUTTON_FALLBACK)
             for btn in prompt_buttons:
                 try:
-                    if 'rate' in btn.text.lower() and btn.is_displayed():
+                    if "rate" in btn.text.lower() and btn.is_displayed():
                         js_click(btn)
                         submit_clicked = True
-                        print(f"  [debug] Clicked Rate button (prompt selector)")
+                        print("  [debug] Clicked Rate button (prompt selector)")
                         time.sleep(1)
                         break
                 except Exception:
@@ -1104,12 +1164,12 @@ def try_rate_on_page(driver: WebDriver, score: int) -> bool:
                 parent = starbar.find_element(By.XPATH, "..")
                 buttons_near = parent.find_elements(By.TAG_NAME, "button")
                 for btn in buttons_near:
-                    aria = btn.get_attribute('aria-label') or ''
-                    if not (aria.startswith('Rate ') and aria.split()[-1].isdigit()):
+                    aria = btn.get_attribute("aria-label") or ""
+                    if not (aria.startswith("Rate ") and aria.split()[-1].isdigit()):
                         if btn.is_displayed() and btn.is_enabled():
                             js_click(btn)
                             submit_clicked = True
-                            print(f"  [debug] Clicked button near starbar")
+                            print("  [debug] Clicked button near starbar")
                             time.sleep(1)
                             break
             except Exception:
@@ -1124,9 +1184,10 @@ def try_rate_on_page(driver: WebDriver, score: int) -> bool:
     # Step 4: Try pressing Enter as last resort
     try:
         from selenium.webdriver.common.action_chains import ActionChains
+
         actions = ActionChains(driver)
         actions.send_keys(Keys.RETURN).perform()
-        print(f"  [debug] Pressed Enter to submit")
+        print("  [debug] Pressed Enter to submit")
         time.sleep(1)
         return True
     except Exception:
@@ -1140,6 +1201,7 @@ def try_rate_on_page(driver: WebDriver, score: int) -> bool:
 # Helper functions for main()
 # =============================================================================
 
+
 def parse_arguments() -> argparse.Namespace:
     """Parse and validate command line arguments.
 
@@ -1150,42 +1212,114 @@ def parse_arguments() -> argparse.Namespace:
         SystemExit: If required arguments are missing.
     """
     parser = argparse.ArgumentParser(
-        description='Upload ratings from a FilmAffinity CSV to IMDb.',
-        formatter_class=argparse.RawDescriptionHelpFormatter
+        description="Upload ratings from a FilmAffinity CSV to IMDb.",
+        formatter_class=argparse.RawDescriptionHelpFormatter,
     )
-    parser.add_argument('--csv', help='Path to watched.csv (required unless using --retry or --resume)')
-    parser.add_argument('--headless', action='store_true', help='Run browser headless')
-    parser.add_argument('--auto-login', action='store_true', help='Try automated login using IMDB_USERNAME/IMDB_PASSWORD env vars')
-    parser.add_argument('--auto-rate', action='store_true', help='Try automated rating clicks (best-effort). If fails, will prompt for manual rating.')
-    parser.add_argument('--dry-run', action='store_true', help='Only map CSV titles to IMDb IDs via IMDbPY and produce a CSV mapping, then exit')
-    parser.add_argument('--dry-run-output', default='imdb_matches.csv', help='Output path for dry-run CSV mapping')
-    parser.add_argument('--validate-only', action='store_true', help='Only validate CSV format and exit')
-    parser.add_argument('--skip-validation', action='store_true', help='Skip CSV format validation')
-    parser.add_argument('--start', type=int, default=0, help='Start index into CSV items')
-    parser.add_argument('--limit', type=int, default=0, help='Limit number of items (0 = all)')
-    parser.add_argument('--confirm-threshold', type=float, default=DEFAULT_CONFIDENCE_THRESHOLD,
-                        help=f'Confidence threshold below which LOW CONFIDENCE warning is shown (default: {DEFAULT_CONFIDENCE_THRESHOLD})')
-    parser.add_argument('--no-confirm', action='store_true', help='Skip confirmation prompts for matches (use with caution)')
-    parser.add_argument('--no-overwrite', action='store_true', help='Never overwrite existing IMDb ratings (auto-skip already rated movies)')
-    parser.add_argument('--unattended', action='store_true', help='Run without user interaction: skip ambiguous matches, skip existing ratings, no manual prompts')
-    parser.add_argument('--low-confidence-only', action='store_true',
-                        help='Only process low-confidence/ambiguous matches (skip films that would auto-match). Useful for reviewing dubious matches.')
-    parser.add_argument('--skipped-dir', default='skipped', help='Output directory for skipped movie CSV files by category (default: skipped/)')
-    parser.add_argument('--retry', choices=['all', 'ambiguous', 'not_found', 'already_rated', 'auto_rate_failed', 'user_skipped'],
-                        help='Re-run using previously skipped movies from --skipped-dir')
-    parser.add_argument('--debug', action='store_true', help='Enable debug output for troubleshooting')
-    parser.add_argument('--verbose', '-v', action='store_true', help='Enable verbose output (same as --debug)')
-    parser.add_argument('--no-beep', action='store_true', help='Disable audible beeps when user input is required')
+    parser.add_argument(
+        "--csv", help="Path to watched.csv (required unless using --retry or --resume)"
+    )
+    parser.add_argument("--headless", action="store_true", help="Run browser headless")
+    parser.add_argument(
+        "--auto-login",
+        action="store_true",
+        help="Try automated login using IMDB_USERNAME/IMDB_PASSWORD env vars",
+    )
+    parser.add_argument(
+        "--auto-rate",
+        action="store_true",
+        help="Try automated rating clicks (best-effort). If fails, will prompt for manual rating.",
+    )
+    parser.add_argument(
+        "--dry-run",
+        action="store_true",
+        help="Only map CSV titles to IMDb IDs via IMDbPY and produce a CSV mapping, then exit",
+    )
+    parser.add_argument(
+        "--dry-run-output", default="imdb_matches.csv", help="Output path for dry-run CSV mapping"
+    )
+    parser.add_argument(
+        "--validate-only", action="store_true", help="Only validate CSV format and exit"
+    )
+    parser.add_argument("--skip-validation", action="store_true", help="Skip CSV format validation")
+    parser.add_argument("--start", type=int, default=0, help="Start index into CSV items")
+    parser.add_argument("--limit", type=int, default=0, help="Limit number of items (0 = all)")
+    parser.add_argument(
+        "--confirm-threshold",
+        type=float,
+        default=DEFAULT_CONFIDENCE_THRESHOLD,
+        help=f"Confidence threshold below which LOW CONFIDENCE warning is shown (default: {DEFAULT_CONFIDENCE_THRESHOLD})",
+    )
+    parser.add_argument(
+        "--no-confirm",
+        action="store_true",
+        help="Skip confirmation prompts for matches (use with caution)",
+    )
+    parser.add_argument(
+        "--no-overwrite",
+        action="store_true",
+        help="Never overwrite existing IMDb ratings (auto-skip already rated movies)",
+    )
+    parser.add_argument(
+        "--unattended",
+        action="store_true",
+        help="Run without user interaction: skip ambiguous matches, skip existing ratings, no manual prompts",
+    )
+    parser.add_argument(
+        "--low-confidence-only",
+        action="store_true",
+        help="Only process low-confidence/ambiguous matches (skip films that would auto-match). Useful for reviewing dubious matches.",
+    )
+    parser.add_argument(
+        "--skipped-dir",
+        default="skipped",
+        help="Output directory for skipped movie CSV files by category (default: skipped/)",
+    )
+    parser.add_argument(
+        "--retry",
+        choices=[
+            "all",
+            "ambiguous",
+            "not_found",
+            "already_rated",
+            "auto_rate_failed",
+            "user_skipped",
+        ],
+        help="Re-run using previously skipped movies from --skipped-dir",
+    )
+    parser.add_argument(
+        "--debug", action="store_true", help="Enable debug output for troubleshooting"
+    )
+    parser.add_argument(
+        "--verbose", "-v", action="store_true", help="Enable verbose output (same as --debug)"
+    )
+    parser.add_argument(
+        "--no-beep", action="store_true", help="Disable audible beeps when user input is required"
+    )
 
     # Configuration file options
-    parser.add_argument('--config', help='Path to config file (JSON). Default: searches upload_imdb.json, ~/.config/upload_imdb/config.json')
-    parser.add_argument('--save-config', metavar='PATH', help='Save current options to config file and exit')
-    parser.add_argument('--show-config', action='store_true', help='Show current configuration and exit')
+    parser.add_argument(
+        "--config",
+        help="Path to config file (JSON). Default: searches upload_imdb.json, ~/.config/upload_imdb/config.json",
+    )
+    parser.add_argument(
+        "--save-config", metavar="PATH", help="Save current options to config file and exit"
+    )
+    parser.add_argument(
+        "--show-config", action="store_true", help="Show current configuration and exit"
+    )
 
     # Session resume options
-    parser.add_argument('--resume', action='store_true', help='Resume previous session (if available)')
-    parser.add_argument('--clear-session', action='store_true', help='Clear saved session and start fresh')
-    parser.add_argument('--session-file', default='.upload_imdb_session.json', help='Session file path (default: .upload_imdb_session.json)')
+    parser.add_argument(
+        "--resume", action="store_true", help="Resume previous session (if available)"
+    )
+    parser.add_argument(
+        "--clear-session", action="store_true", help="Clear saved session and start fresh"
+    )
+    parser.add_argument(
+        "--session-file",
+        default=".upload_imdb_session.json",
+        help="Session file path (default: .upload_imdb_session.json)",
+    )
 
     args = parser.parse_args()
 
@@ -1202,7 +1336,7 @@ def parse_arguments() -> argparse.Namespace:
 
     # Validate: either --csv, --retry, or --resume must be provided
     if not args.csv and not args.retry and not args.resume:
-        parser.error('--csv is required unless using --retry or --resume')
+        parser.error("--csv is required unless using --retry or --resume")
 
     return args
 
@@ -1218,19 +1352,19 @@ def apply_config_to_args(args: argparse.Namespace, config: dict[str, Any]) -> No
     """
     # Map config keys to args attributes
     config_mappings = {
-        'headless': ('headless', False),
-        'auto_login': ('auto_login', False),
-        'auto_rate': ('auto_rate', False),
-        'confirm_threshold': ('confirm_threshold', DEFAULT_CONFIDENCE_THRESHOLD),
-        'no_confirm': ('no_confirm', False),
-        'no_overwrite': ('no_overwrite', False),
-        'unattended': ('unattended', False),
-        'low_confidence_only': ('low_confidence_only', False),
-        'skipped_dir': ('skipped_dir', 'skipped'),
-        'session_file': ('session_file', '.upload_imdb_session.json'),
-        'debug': ('debug', False),
-        'verbose': ('verbose', False),
-        'no_beep': ('no_beep', False),
+        "headless": ("headless", False),
+        "auto_login": ("auto_login", False),
+        "auto_rate": ("auto_rate", False),
+        "confirm_threshold": ("confirm_threshold", DEFAULT_CONFIDENCE_THRESHOLD),
+        "no_confirm": ("no_confirm", False),
+        "no_overwrite": ("no_overwrite", False),
+        "unattended": ("unattended", False),
+        "low_confidence_only": ("low_confidence_only", False),
+        "skipped_dir": ("skipped_dir", "skipped"),
+        "session_file": ("session_file", ".upload_imdb_session.json"),
+        "debug": ("debug", False),
+        "verbose": ("verbose", False),
+        "no_beep": ("no_beep", False),
     }
 
     for config_key, (arg_attr, default_val) in config_mappings.items():
@@ -1250,7 +1384,7 @@ def init_imdbpy_client() -> Any:
     if IMDbPYClient is None:
         return None
     try:
-        return IMDbPYClient('http')
+        return IMDbPYClient("http")
     except Exception:
         try:
             return IMDbPYClient()
@@ -1274,22 +1408,22 @@ def load_items(args: argparse.Namespace) -> list[MovieItem]:
         return load_retry_items(args.skipped_dir, args.retry)
 
     # Validate CSV format before processing (unless --skip-validation)
-    skip_validation = getattr(args, 'skip_validation', False)
+    skip_validation = getattr(args, "skip_validation", False)
     if not skip_validation:
-        print(f'Validating CSV format: {args.csv}')
+        print(f"Validating CSV format: {args.csv}")
         validation = validate_csv_format(args.csv, require_score=True)
         print(validation)
 
         if not validation.valid:
-            print('\n❌ CSV validation failed. Fix the errors above and try again.')
-            print('   Use --skip-validation to bypass this check (not recommended).')
+            print("\n❌ CSV validation failed. Fix the errors above and try again.")
+            print("   Use --skip-validation to bypass this check (not recommended).")
             sys.exit(1)
 
         if validation.warnings:
-            print('\n⚠️  Validation passed with warnings (see above).')
+            print("\n⚠️  Validation passed with warnings (see above).")
 
     items = read_csv(args.csv)
-    print(f'Read {len(items)} items from {args.csv}')
+    print(f"Read {len(items)} items from {args.csv}")
     return items
 
 
@@ -1303,7 +1437,7 @@ def load_retry_items(skipped_dir: str, retry_category: str) -> list[MovieItem]:
     Returns:
         List of movie items from the specified categories.
     """
-    if retry_category == 'all':
+    if retry_category == "all":
         categories_to_load = list(RETRY_CATEGORY_TO_FILE.keys())
     else:
         categories_to_load = [retry_category]
@@ -1313,15 +1447,15 @@ def load_retry_items(skipped_dir: str, retry_category: str) -> list[MovieItem]:
         csv_file = os.path.join(skipped_dir, RETRY_CATEGORY_TO_FILE[cat])
         if os.path.exists(csv_file):
             cat_items = read_csv(csv_file)
-            print(f'  Loaded {len(cat_items)} items from {csv_file}')
+            print(f"  Loaded {len(cat_items)} items from {csv_file}")
             items.extend(cat_items)
         else:
-            print(f'  No file found: {csv_file}')
+            print(f"  No file found: {csv_file}")
 
     if items:
-        print(f'Retrying {len(items)} previously skipped items')
+        print(f"Retrying {len(items)} previously skipped items")
     else:
-        print(f'No skipped items found to retry in {skipped_dir}/')
+        print(f"No skipped items found to retry in {skipped_dir}/")
 
     return items
 
@@ -1338,7 +1472,7 @@ def apply_slice(items: list[MovieItem], start: int, limit: int) -> list[MovieIte
         Sliced list of movie items.
     """
     if limit > 0:
-        return items[start:start + limit]
+        return items[start : start + limit]
     return items[start:]
 
 
@@ -1350,25 +1484,53 @@ def run_dry_run(items: list[MovieItem], ia: Any, output_path: str) -> None:
         ia: IMDbPY client instance.
         output_path: Path for output CSV file.
     """
-    print(f'Running dry-run mapping using IMDbPY; writing results to {output_path}')
+    print(f"Running dry-run mapping using IMDbPY; writing results to {output_path}")
     total_items = len(items)
-    with open(output_path, 'w', newline='', encoding='utf-8') as fh:
+    with open(output_path, "w", newline="", encoding="utf-8") as fh:
         w = csv.writer(fh)
-        w.writerow(['local_title', 'local_year', 'local_director', 'imdb_id', 'imdb_title', 'imdb_year', 'score', 'query', 'result_count'])
+        w.writerow(
+            [
+                "local_title",
+                "local_year",
+                "local_director",
+                "imdb_id",
+                "imdb_title",
+                "imdb_year",
+                "score",
+                "query",
+                "result_count",
+            ]
+        )
         for idx, it in enumerate(items, start=1):
-            title = it['title']
-            year = it.get('year')
-            director = it.get('directors')
-            original_title = it.get('original_title')
+            title = it["title"]
+            year = it.get("year")
+            director = it.get("directors")
+            original_title = it.get("original_title")
             progress_pct = (idx / total_items) * 100
-            best = find_imdb_match(title, year, ia=ia, director=director, original_title=original_title)
-            print(f'[{idx}/{total_items}] ({progress_pct:.1f}%) Best match for "{title}" ({year}): {best.get("title") if best else "None"}')
+            best = find_imdb_match(
+                title, year, ia=ia, director=director, original_title=original_title
+            )
+            print(
+                f'[{idx}/{total_items}] ({progress_pct:.1f}%) Best match for "{title}" ({year}): {best.get("title") if best else "None"}'
+            )
             if best:
-                imdb_id = f"tt{best['movieID']}" if best.get('movieID') else ''
-                w.writerow([title, year or '', director or '', imdb_id, best.get('title') or '', best.get('year') or '', f"{best.get('score'):.3f}", best.get('query') or '', best.get('result_count') or 0])
+                imdb_id = f"tt{best['movieID']}" if best.get("movieID") else ""
+                w.writerow(
+                    [
+                        title,
+                        year or "",
+                        director or "",
+                        imdb_id,
+                        best.get("title") or "",
+                        best.get("year") or "",
+                        f"{best.get('score'):.3f}",
+                        best.get("query") or "",
+                        best.get("result_count") or 0,
+                    ]
+                )
             else:
-                w.writerow([title, year or '', director or '', '', '', '', '0.000', '', 0])
-    print('Dry-run complete.')
+                w.writerow([title, year or "", director or "", "", "", "", "0.000", "", 0])
+    print("Dry-run complete.")
 
 
 def setup_browser_session(args: argparse.Namespace) -> WebDriver:
@@ -1384,18 +1546,20 @@ def setup_browser_session(args: argparse.Namespace) -> WebDriver:
 
     logged_in = False
     if args.auto_login:
-        username = os.environ.get('IMDB_USERNAME')
-        password = os.environ.get('IMDB_PASSWORD')
+        username = os.environ.get("IMDB_USERNAME")
+        password = os.environ.get("IMDB_PASSWORD")
         if username and password:
-            print('Attempting automated login...')
+            print("Attempting automated login...")
             logged_in = try_automated_login(driver, username, password)
             if not logged_in:
-                print('Automated login failed or was inconclusive. Falling back to manual login flow.')
+                print(
+                    "Automated login failed or was inconclusive. Falling back to manual login flow."
+                )
         else:
-            print('IMDB_USERNAME/IMDB_PASSWORD not set; falling back to manual login.')
+            print("IMDB_USERNAME/IMDB_PASSWORD not set; falling back to manual login.")
 
     if not logged_in:
-        driver.get('https://www.imdb.com/')
+        driver.get("https://www.imdb.com/")
         wait_for_login_manual(driver)
 
     return driver
@@ -1408,14 +1572,14 @@ def create_stats() -> Stats:
         Dictionary with all stats initialized to zero/False.
     """
     return {
-        'applied': 0,
-        'skipped_ambiguous': 0,
-        'skipped_not_found': 0,
-        'skipped_already_rated': 0,
-        'skipped_same_rating': 0,
-        'skipped_user_choice': 0,
-        'skipped_auto_rate_failed': 0,
-        'quit_early': False
+        "applied": 0,
+        "skipped_ambiguous": 0,
+        "skipped_not_found": 0,
+        "skipped_already_rated": 0,
+        "skipped_same_rating": 0,
+        "skipped_user_choice": 0,
+        "skipped_auto_rate_failed": 0,
+        "quit_early": False,
     }
 
 
@@ -1427,34 +1591,39 @@ def print_summary(stats: Stats, total_processed: int) -> None:
         total_processed: Total number of items processed.
     """
     # Use .get() for backward compatibility with old session states
-    total_skipped = (stats.get('skipped_ambiguous', 0) + stats.get('skipped_not_found', 0) +
-                     stats.get('skipped_already_rated', 0) + stats.get('skipped_same_rating', 0) +
-                     stats.get('skipped_user_choice', 0) + stats.get('skipped_auto_rate_failed', 0) +
-                     stats.get('skipped_high_confidence', 0))
-    print('\n' + '='*60)
-    print('📊  SUMMARY')
-    print('='*60)
-    print(f'  Total items processed: {total_processed}')
+    total_skipped = (
+        stats.get("skipped_ambiguous", 0)
+        + stats.get("skipped_not_found", 0)
+        + stats.get("skipped_already_rated", 0)
+        + stats.get("skipped_same_rating", 0)
+        + stats.get("skipped_user_choice", 0)
+        + stats.get("skipped_auto_rate_failed", 0)
+        + stats.get("skipped_high_confidence", 0)
+    )
+    print("\n" + "=" * 60)
+    print("📊  SUMMARY")
+    print("=" * 60)
+    print(f"  Total items processed: {total_processed}")
     print(f'  ✅ Ratings applied:     {stats.get("applied", 0)}')
-    print(f'  ⏭️  Total skipped:       {total_skipped}')
+    print(f"  ⏭️  Total skipped:       {total_skipped}")
     if total_skipped > 0:
-        print('     Breakdown:')
-        if stats.get('skipped_high_confidence', 0) > 0:
+        print("     Breakdown:")
+        if stats.get("skipped_high_confidence", 0) > 0:
             print(f'       - High confidence:   {stats["skipped_high_confidence"]}')
-        if stats.get('skipped_ambiguous', 0) > 0:
+        if stats.get("skipped_ambiguous", 0) > 0:
             print(f'       - Ambiguous match:   {stats["skipped_ambiguous"]}')
-        if stats.get('skipped_not_found', 0) > 0:
+        if stats.get("skipped_not_found", 0) > 0:
             print(f'       - Not found:         {stats["skipped_not_found"]}')
-        if stats.get('skipped_already_rated', 0) > 0:
+        if stats.get("skipped_already_rated", 0) > 0:
             print(f'       - Already rated:     {stats["skipped_already_rated"]}')
-        if stats.get('skipped_same_rating', 0) > 0:
+        if stats.get("skipped_same_rating", 0) > 0:
             print(f'       - Same rating:       {stats["skipped_same_rating"]}')
-        if stats.get('skipped_user_choice', 0) > 0:
+        if stats.get("skipped_user_choice", 0) > 0:
             print(f'       - User skipped:      {stats["skipped_user_choice"]}')
-        if stats.get('skipped_auto_rate_failed', 0) > 0:
+        if stats.get("skipped_auto_rate_failed", 0) > 0:
             print(f'       - Auto-rate failed:  {stats["skipped_auto_rate_failed"]}')
-    if stats.get('quit_early'):
-        print(f'  ⚠️  Quit early (remaining items not processed)')
+    if stats.get("quit_early"):
+        print("  ⚠️  Quit early (remaining items not processed)")
 
 
 def write_skipped_files(skipped_items: list[SkippedEntry], skipped_dir: str) -> None:
@@ -1473,56 +1642,60 @@ def write_skipped_files(skipped_items: list[SkippedEntry], skipped_dir: str) -> 
     os.makedirs(skipped_dir, exist_ok=True)
 
     # Group skipped items by reason
-    by_reason = {}
+    by_reason: dict[str, list[dict[str, Any]]] = {}
     for entry in skipped_items:
-        reason = entry['reason']
+        reason = entry["reason"]
         if reason not in by_reason:
             by_reason[reason] = []
         by_reason[reason].append(entry)
 
-    print(f'\n  📄 Writing skipped items to: {skipped_dir}/')
+    print(f"\n  📄 Writing skipped items to: {skipped_dir}/")
 
     for reason, entries in by_reason.items():
-        filename = SKIP_REASON_TO_FILE.get(reason, f'skipped_{reason}.csv')
+        filename = SKIP_REASON_TO_FILE.get(reason, f"skipped_{reason}.csv")
         filepath = os.path.join(skipped_dir, filename)
-        with open(filepath, 'w', newline='', encoding='utf-8') as fh:
-            writer = csv.DictWriter(fh, fieldnames=CSV_FIELDNAMES, delimiter=';')
+        with open(filepath, "w", newline="", encoding="utf-8") as fh:
+            writer = csv.DictWriter(fh, fieldnames=CSV_FIELDNAMES, delimiter=";")
             writer.writeheader()
             for entry in entries:
-                item = entry['item']
-                writer.writerow({
-                    'title': item.get('title', ''),
-                    'year': item.get('year', ''),
-                    'directors': item.get('directors', ''),
-                    'user score': item.get('score', ''),
-                    'original title': item.get('original_title', ''),
-                })
-        print(f'       - {filename}: {len(entries)} items')
+                item = entry["item"]
+                writer.writerow(
+                    {
+                        "title": item.get("title", ""),
+                        "year": item.get("year", ""),
+                        "directors": item.get("directors", ""),
+                        "user score": item.get("score", ""),
+                        "original title": item.get("original_title", ""),
+                    }
+                )
+        print(f"       - {filename}: {len(entries)} items")
 
     # Write combined file
-    combined_path = os.path.join(skipped_dir, 'skipped_all.csv')
-    with open(combined_path, 'w', newline='', encoding='utf-8') as fh:
-        writer = csv.DictWriter(fh, fieldnames=CSV_FIELDNAMES_WITH_REASON, delimiter=';')
+    combined_path = os.path.join(skipped_dir, "skipped_all.csv")
+    with open(combined_path, "w", newline="", encoding="utf-8") as fh:
+        writer = csv.DictWriter(fh, fieldnames=CSV_FIELDNAMES_WITH_REASON, delimiter=";")
         writer.writeheader()
         for entry in skipped_items:
-            item = entry['item']
-            writer.writerow({
-                'title': item.get('title', ''),
-                'year': item.get('year', ''),
-                'directors': item.get('directors', ''),
-                'user score': item.get('score', ''),
-                'original title': item.get('original_title', ''),
-                'skip_reason': entry['reason']
-            })
-    print(f'       - skipped_all.csv: {len(skipped_items)} items (combined)')
+            item = entry["item"]
+            writer.writerow(
+                {
+                    "title": item.get("title", ""),
+                    "year": item.get("year", ""),
+                    "directors": item.get("directors", ""),
+                    "user score": item.get("score", ""),
+                    "original title": item.get("original_title", ""),
+                    "skip_reason": entry["reason"],
+                }
+            )
+    print(f"       - skipped_all.csv: {len(skipped_items)} items (combined)")
 
-    print(f'\n  💡 Re-run options:')
-    print(f'       --retry all              # Retry all skipped movies')
-    print(f'       --retry ambiguous        # Retry only ambiguous matches')
-    print(f'       --retry not_found        # Retry only not found')
-    print(f'       --retry already_rated    # Retry only already rated')
-    print(f'       --retry auto_rate_failed # Retry only auto-rate failures')
-    print(f'       --retry user_skipped     # Retry only user-skipped')
+    print("\n  💡 Re-run options:")
+    print("       --retry all              # Retry all skipped movies")
+    print("       --retry ambiguous        # Retry only ambiguous matches")
+    print("       --retry not_found        # Retry only not found")
+    print("       --retry already_rated    # Retry only already rated")
+    print("       --retry auto_rate_failed # Retry only auto-rate failures")
+    print("       --retry user_skipped     # Retry only user-skipped")
 
 
 def process_single_item(
@@ -1531,7 +1704,7 @@ def process_single_item(
     item: MovieItem,
     args: argparse.Namespace,
     stats: Stats,
-    skipped_items: list[SkippedEntry]
+    skipped_items: list[SkippedEntry],
 ) -> str:
     """Process a single movie item.
 
@@ -1546,14 +1719,14 @@ def process_single_item(
     Returns:
         'continue' to skip to next item, 'break' to stop processing, or 'ok' for success.
     """
-    title = item['title']
-    year = item.get('year')
-    director = item.get('directors')
-    score = item.get('score')
-    original_title = item.get('original_title')
+    title = item["title"]
+    year = item.get("year")
+    director = item.get("directors")
+    score = item.get("score")
+    original_title = item.get("original_title")
 
     if original_title:
-        print(f'  Original title: {original_title}')
+        print(f"  Original title: {original_title}")
 
     # Find IMDb match
     imdb_match = None
@@ -1563,57 +1736,69 @@ def process_single_item(
     imdb_year = None
 
     if ia is not None:
-        imdb_match = find_imdb_match(title, year, ia=ia, director=director, original_title=original_title)
+        imdb_match = find_imdb_match(
+            title, year, ia=ia, director=director, original_title=original_title
+        )
         if imdb_match:
-            confidence = imdb_match.get('score', 0.0)
-            imdb_id = f"tt{imdb_match['movieID']}" if imdb_match.get('movieID') else None
-            imdb_title = imdb_match.get('title')
-            imdb_year = imdb_match.get('year')
-            print(f'  IMDb match: {imdb_title} ({imdb_year}) [{imdb_id}] - confidence: {confidence:.1%}')
+            confidence = imdb_match.get("score", 0.0)
+            imdb_id = f"tt{imdb_match['movieID']}" if imdb_match.get("movieID") else None
+            imdb_title = imdb_match.get("title")
+            imdb_year = imdb_match.get("year")
+            print(
+                f"  IMDb match: {imdb_title} ({imdb_year}) [{imdb_id}] - confidence: {confidence:.1%}"
+            )
 
     # Check if exact match
     title_matches = imdb_title and title.lower().strip() == imdb_title.lower().strip()
-    year_matches = (not year and not imdb_year) or (year and imdb_year and str(year).strip() == str(imdb_year).strip())
+    year_matches = (not year and not imdb_year) or (
+        year and imdb_year and str(year).strip() == str(imdb_year).strip()
+    )
     is_exact_match = title_matches and year_matches
 
     # Check confidence level
     is_low_confidence = confidence < args.confirm_threshold
 
     # Skip high-confidence matches when --low-confidence-only is enabled
-    if getattr(args, 'low_confidence_only', False) and imdb_match and not is_low_confidence and is_exact_match:
-        print(f'  [low-confidence-only] Skipping high-confidence match ({confidence:.1%} >= {args.confirm_threshold:.1%})')
-        stats['skipped_high_confidence'] = stats.get('skipped_high_confidence', 0) + 1
-        return 'continue'
+    if (
+        getattr(args, "low_confidence_only", False)
+        and imdb_match
+        and not is_low_confidence
+        and is_exact_match
+    ):
+        print(
+            f"  [low-confidence-only] Skipping high-confidence match ({confidence:.1%} >= {args.confirm_threshold:.1%})"
+        )
+        stats["skipped_high_confidence"] = stats.get("skipped_high_confidence", 0) + 1
+        return "continue"
 
     # Handle confirmation for non-exact matches
     if imdb_match and not args.no_confirm and not is_exact_match:
         result = handle_match_confirmation(
-            item, imdb_match, imdb_id, imdb_title, imdb_year, confidence,
-            args, stats, skipped_items
+            item, imdb_match, imdb_id, imdb_title, imdb_year, confidence, args, stats, skipped_items
         )
-        if result == 'break':
-            return 'break'
-        elif result == 'continue':
-            return 'continue'
+        if result == "break":
+            return "break"
+        elif result == "continue":
+            return "continue"
         elif isinstance(result, dict):
             # User selected a different match
-            imdb_id = result.get('imdb_id')
-            imdb_title = result.get('imdb_title')
-            imdb_year = result.get('imdb_year')
+            imdb_id = result.get("imdb_id")
+            imdb_title = result.get("imdb_title")
+            imdb_year = result.get("imdb_year")
 
     # Navigate to IMDb page
     if imdb_id:
-        url = f'https://www.imdb.com/title/{imdb_id}/'
-        print(f'  Opening: {url}')
+        url = f"https://www.imdb.com/title/{imdb_id}/"
+        print(f"  Opening: {url}")
         driver.get(url)
         time.sleep(1)
     else:
         found = imdb_search_and_open(driver, title, year)
         if not found:
             print(f'  Could not find search results for "{title}". Skipping.')
-            stats['skipped_not_found'] += 1
-            skipped_items.append({'item': item, 'reason': SKIP_NOT_FOUND})
-            return 'continue'
+            stats["skipped_not_found"] += 1
+            skipped_items.append({"item": item, "reason": SKIP_NOT_FOUND})
+            return "continue"
 
     # Check for existing rating
     time.sleep(1)
@@ -1621,27 +1806,29 @@ def process_single_item(
     if existing_rating is not None:
         # If existing rating matches desired score, skip silently (already correct)
         if existing_rating == score:
-            print(f'  ✓ Already rated {existing_rating}/10 (matches CSV score). Skipping.')
-            stats['skipped_same_rating'] += 1
-            skipped_items.append({'item': item, 'reason': SKIP_SAME_RATING})
-            return 'continue'
+            print(f"  ✓ Already rated {existing_rating}/10 (matches CSV score). Skipping.")
+            stats["skipped_same_rating"] += 1
+            skipped_items.append({"item": item, "reason": SKIP_SAME_RATING})
+            return "continue"
 
         if args.unattended or args.no_overwrite:
-            mode_str = '[unattended]' if args.unattended else '[no-overwrite]'
-            print(f'  {mode_str} Skipping - already rated {existing_rating}/10 (CSV wants {score}/10).')
-            stats['skipped_already_rated'] += 1
-            skipped_items.append({'item': item, 'reason': SKIP_ALREADY_RATED})
-            return 'continue'
+            mode_str = "[unattended]" if args.unattended else "[no-overwrite]"
+            print(
+                f"  {mode_str} Skipping - already rated {existing_rating}/10 (CSV wants {score}/10)."
+            )
+            stats["skipped_already_rated"] += 1
+            skipped_items.append({"item": item, "reason": SKIP_ALREADY_RATED})
+            return "continue"
 
         choice = prompt_existing_rating(title, year, score, existing_rating)
-        if choice == 'quit':
-            print('User requested quit.')
-            stats['quit_early'] = True
-            return 'break'
-        elif choice == 'skip':
-            print('  Skipping (keeping existing rating).')
-            stats['skipped_already_rated'] += 1
-            return 'continue'
+        if choice == "quit":
+            print("User requested quit.")
+            stats["quit_early"] = True
+            return "break"
+        elif choice == "skip":
+            print("  Skipping (keeping existing rating).")
+            stats["skipped_already_rated"] += 1
+            return "continue"
 
     # Attempt to rate
     success = False
@@ -1649,36 +1836,38 @@ def process_single_item(
         try:
             success = try_rate_on_page(driver, score)
         except Exception as e:
-            print('  Auto-rate exception:', e)
+            print("  Auto-rate exception:", e)
             success = False
 
     if not success:
         if args.unattended:
-            print('  [unattended] Auto-rate failed, skipping.')
-            stats['skipped_auto_rate_failed'] += 1
-            skipped_items.append({'item': item, 'reason': SKIP_AUTO_RATE_FAILED})
-            return 'continue'
+            print("  [unattended] Auto-rate failed, skipping.")
+            stats["skipped_auto_rate_failed"] += 1
+            skipped_items.append({"item": item, "reason": SKIP_AUTO_RATE_FAILED})
+            return "continue"
         beep()
-        print('  Could not auto-rate. The movie page is open in the browser.')
-        input('  Please rate the movie manually in the browser, then press Enter here to continue...')
+        print("  Could not auto-rate. The movie page is open in the browser.")
+        input(
+            "  Please rate the movie manually in the browser, then press Enter here to continue..."
+        )
     else:
-        print('  Rating applied (best-effort).')
+        print("  Rating applied (best-effort).")
 
-    stats['applied'] += 1
+    stats["applied"] += 1
     time.sleep(0.5)
-    return 'ok'
+    return "ok"
 
 
 def handle_match_confirmation(
     item: MovieItem,
     imdb_match: IMDbMatch,
-    imdb_id: Optional[str],
-    imdb_title: Optional[str],
-    imdb_year: Optional[str],
+    imdb_id: str | None,
+    imdb_title: str | None,
+    imdb_year: str | None,
     confidence: float,
     args: argparse.Namespace,
     stats: Stats,
-    skipped_items: list[SkippedEntry]
+    skipped_items: list[SkippedEntry],
 ) -> str | dict:
     """Handle user confirmation for ambiguous matches.
 
@@ -1696,18 +1885,18 @@ def handle_match_confirmation(
     Returns:
         'break' to stop, 'continue' to skip, 'apply' to proceed, or dict with new match.
     """
-    title = item['title']
-    year = item.get('year')
-    director = item.get('directors')
-    score = item.get('score')
+    title = item["title"]
+    year = item.get("year")
+    director = item.get("directors")
+    score = item.get("score")
 
     if args.unattended:
-        print('  [unattended] Skipping ambiguous match (title/year mismatch).')
-        stats['skipped_ambiguous'] += 1
-        skipped_items.append({'item': item, 'reason': SKIP_AMBIGUOUS})
-        return 'continue'
+        print("  [unattended] Skipping ambiguous match (title/year mismatch).")
+        stats["skipped_ambiguous"] += 1
+        skipped_items.append({"item": item, "reason": SKIP_AMBIGUOUS})
+        return "continue"
 
-    candidates = imdb_match.get('candidates', [])
+    candidates = imdb_match.get("candidates", [])
     is_low_confidence = confidence < args.confirm_threshold
 
     if is_low_confidence and candidates:
@@ -1717,22 +1906,22 @@ def handle_match_confirmation(
             local_year=year,
             local_director=director,
             local_score=score,
-            candidates=candidates
+            candidates=candidates,
         )
-        if choice == 'quit':
-            print('User requested quit.')
-            stats['quit_early'] = True
-            return 'break'
-        elif choice == 'skip':
-            print('  Skipping this item.')
-            stats['skipped_user_choice'] += 1
-            skipped_items.append({'item': item, 'reason': SKIP_USER_CHOICE})
-            return 'continue'
+        if choice == "quit":
+            print("User requested quit.")
+            stats["quit_early"] = True
+            return "break"
+        elif choice == "skip":
+            print("  Skipping this item.")
+            stats["skipped_user_choice"] += 1
+            skipped_items.append({"item": item, "reason": SKIP_USER_CHOICE})
+            return "continue"
         elif isinstance(choice, dict):
             return {
-                'imdb_id': f"tt{choice['movieID']}" if choice.get('movieID') else None,
-                'imdb_title': choice.get('title'),
-                'imdb_year': choice.get('year')
+                "imdb_id": f"tt{choice['movieID']}" if choice.get("movieID") else None,
+                "imdb_title": choice.get("title"),
+                "imdb_year": choice.get("year"),
             }
     else:
         # Show simple confirm dialog
@@ -1747,50 +1936,53 @@ def handle_match_confirmation(
                 imdb_id=imdb_id,
                 confidence=confidence,
                 is_low_confidence=is_low_confidence,
-                candidates=candidates
+                candidates=candidates,
             )
-            if choice == 'quit':
-                print('User requested quit.')
-                stats['quit_early'] = True
-                return 'break'
-            elif choice == 'skip':
-                print('  Skipping this item.')
-                stats['skipped_user_choice'] += 1
-                skipped_items.append({'item': item, 'reason': SKIP_USER_CHOICE})
-                return 'continue'
-            elif choice == 'select' and candidates:
+            if choice == "quit":
+                print("User requested quit.")
+                stats["quit_early"] = True
+                return "break"
+            elif choice == "skip":
+                print("  Skipping this item.")
+                stats["skipped_user_choice"] += 1
+                skipped_items.append({"item": item, "reason": SKIP_USER_CHOICE})
+                return "continue"
+            elif choice == "select" and candidates:
                 select_choice = prompt_select_candidate(
                     local_title=title,
                     local_year=year,
                     local_director=director,
                     local_score=score,
-                    candidates=candidates
+                    candidates=candidates,
                 )
-                if select_choice == 'quit':
-                    print('User requested quit.')
-                    stats['quit_early'] = True
-                    return 'break'
-                elif select_choice == 'skip':
-                    print('  Skipping this item.')
-                    stats['skipped_user_choice'] += 1
-                    skipped_items.append({'item': item, 'reason': SKIP_USER_CHOICE})
-                    return 'continue'
+                if select_choice == "quit":
+                    print("User requested quit.")
+                    stats["quit_early"] = True
+                    return "break"
+                elif select_choice == "skip":
+                    print("  Skipping this item.")
+                    stats["skipped_user_choice"] += 1
+                    skipped_items.append({"item": item, "reason": SKIP_USER_CHOICE})
+                    return "continue"
                 elif isinstance(select_choice, dict):
                     return {
-                        'imdb_id': f"tt{select_choice['movieID']}" if select_choice.get('movieID') else None,
-                        'imdb_title': select_choice.get('title'),
-                        'imdb_year': select_choice.get('year')
+                        "imdb_id": f"tt{select_choice['movieID']}"
+                        if select_choice.get("movieID")
+                        else None,
+                        "imdb_title": select_choice.get("title"),
+                        "imdb_year": select_choice.get("year"),
                     }
             else:
                 # 'apply' - proceed with original match
-                return 'apply'
+                return "apply"
 
-    return 'apply'
+    return "apply"
 
 
 # =============================================================================
 # Main entry point
 # =============================================================================
+
 
 def main():
     args = parse_arguments()
@@ -1818,31 +2010,31 @@ def main():
         if not args.csv:
             print("Error: --csv is required with --validate-only")
             sys.exit(1)
-        print(f'Validating CSV format: {args.csv}')
+        print(f"Validating CSV format: {args.csv}")
         validation = validate_csv_format(args.csv, require_score=True)
         print(validation)
         if validation.valid:
-            print('\n✅ CSV is valid and ready for processing.')
+            print("\n✅ CSV is valid and ready for processing.")
             sys.exit(0)
         else:
-            print('\n❌ CSV validation failed.')
+            print("\n❌ CSV validation failed.")
             sys.exit(1)
 
     if args.save_config:
         # Build config from current args
         save_cfg = {
-            'headless': args.headless,
-            'auto_login': args.auto_login,
-            'auto_rate': args.auto_rate,
-            'confirm_threshold': args.confirm_threshold,
-            'no_confirm': args.no_confirm,
-            'no_overwrite': args.no_overwrite,
-            'unattended': args.unattended,
-            'skipped_dir': args.skipped_dir,
-            'session_file': args.session_file,
-            'debug': args.debug,
-            'verbose': args.verbose,
-            'no_beep': args.no_beep,
+            "headless": args.headless,
+            "auto_login": args.auto_login,
+            "auto_rate": args.auto_rate,
+            "confirm_threshold": args.confirm_threshold,
+            "no_confirm": args.no_confirm,
+            "no_overwrite": args.no_overwrite,
+            "unattended": args.unattended,
+            "skipped_dir": args.skipped_dir,
+            "session_file": args.session_file,
+            "debug": args.debug,
+            "verbose": args.verbose,
+            "no_beep": args.no_beep,
         }
         save_config(save_cfg, args.save_config)
         return
@@ -1861,16 +2053,16 @@ def main():
         if session.load():
             if args.csv and not session.is_resumable(args.csv):
                 beep()
-                print(f"Warning: Saved session is for a different CSV file.")
+                print("Warning: Saved session is for a different CSV file.")
                 print(f"  Session CSV: {session.csv_path}")
                 print(f"  Current CSV: {args.csv}")
                 choice = input("Start fresh? [y/N]: ").strip().lower()
-                if choice != 'y':
+                if choice != "y":
                     print("Aborting. Use --clear-session to start fresh.")
                     return
                 session.clear()
             else:
-                print(f"\n📂 Resuming previous session:")
+                print("\n📂 Resuming previous session:")
                 print(session.get_resume_info())
                 start_index = session.current_index
                 if not args.csv:
@@ -1896,14 +2088,14 @@ def main():
     if args.dry_run:
         ia = init_imdbpy_client()
         if ia is None:
-            print('IMDbPY not available. Install with: pip install imdbpy')
+            print("IMDbPY not available. Install with: pip install imdbpy")
         run_dry_run(items, ia, args.dry_run_output)
         return
 
     # Initialize IMDbPY client
     ia = init_imdbpy_client()
     if ia is None:
-        print('Warning: IMDbPY not available. Confidence-based matching will be disabled.')
+        print("Warning: IMDbPY not available. Confidence-based matching will be disabled.")
 
     # Set up browser session
     driver = setup_browser_session(args)
@@ -1927,11 +2119,13 @@ def main():
 
     try:
         for idx, item in enumerate(items, start=start_index + 1):
-            title = item['title']
-            year = item.get('year')
-            score = item.get('score')
+            title = item["title"]
+            year = item.get("year")
+            score = item.get("score")
             progress_pct = (idx / total_items) * 100
-            print(f'\n[{idx}/{total_items}] ({progress_pct:.1f}%) Processing: {title} ({year})  -> score: {score}')
+            print(
+                f"\n[{idx}/{total_items}] ({progress_pct:.1f}%) Processing: {title} ({year})  -> score: {score}"
+            )
 
             result = process_single_item(driver, ia, item, args, stats, skipped_items)
 
@@ -1941,7 +2135,7 @@ def main():
             session.skipped_items = skipped_items
             session.save()
 
-            if result == 'break':
+            if result == "break":
                 break
     except KeyboardInterrupt:
         print("\n\n⚠️  Interrupted by user. Session saved.")
@@ -1953,17 +2147,17 @@ def main():
         print_summary(stats, idx)
         write_skipped_files(skipped_items, args.skipped_dir)
 
-        print('='*60)
-        print('Closing browser.')
+        print("=" * 60)
+        print("Closing browser.")
         driver.quit()
 
         # Clear session if completed successfully without quit_early
-        if not stats.get('quit_early') and idx >= len(items) + start_index:
+        if not stats.get("quit_early") and idx >= len(items) + start_index:
             session.clear()
             print("✅ Session completed and cleared.")
         else:
             print(f"💾 Session saved. Use --resume to continue from item {idx}.")
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     main()

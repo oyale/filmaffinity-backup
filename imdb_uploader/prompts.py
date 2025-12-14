@@ -3,15 +3,14 @@
 from __future__ import annotations
 
 import re
-from typing import Optional
 
 __all__ = [
-    'beep',
-    'parse_imdb_id',
-    'prompt_existing_rating',
-    'prompt_confirm_match',
-    'prompt_low_confidence_match',
-    'prompt_select_candidate',
+    "beep",
+    "parse_imdb_id",
+    "prompt_existing_rating",
+    "prompt_confirm_match",
+    "prompt_low_confidence_match",
+    "prompt_select_candidate",
 ]
 
 # Module-level flag to control beeping
@@ -44,10 +43,10 @@ def beep() -> None:
     Can be disabled globally via set_beep_enabled(False).
     """
     if _beep_enabled:
-        print('\a', end='', flush=True)
+        print("\a", end="", flush=True)
 
 
-def parse_imdb_id(input_str: str) -> Optional[str]:
+def parse_imdb_id(input_str: str) -> str | None:
     """Parse an IMDb ID from various input formats.
 
     Accepts:
@@ -75,12 +74,12 @@ def parse_imdb_id(input_str: str) -> Optional[str]:
     input_str = input_str.strip()
 
     # Try to extract from URL pattern
-    url_match = re.search(r'imdb\.com/title/tt(\d+)', input_str)
+    url_match = re.search(r"imdb\.com/title/tt(\d+)", input_str)
     if url_match:
         return url_match.group(1)
 
     # Try tt-prefixed pattern
-    tt_match = re.match(r'^tt(\d+)$', input_str, re.IGNORECASE)
+    tt_match = re.match(r"^tt(\d+)$", input_str, re.IGNORECASE)
     if tt_match:
         return tt_match.group(1)
 
@@ -92,10 +91,7 @@ def parse_imdb_id(input_str: str) -> Optional[str]:
 
 
 def prompt_existing_rating(
-    local_title: str,
-    local_year: Optional[str],
-    local_score: Optional[int],
-    existing_rating: int
+    local_title: str, local_year: str | None, local_score: int | None, existing_rating: int
 ) -> str:
     """Prompt user to decide whether to overwrite an existing IMDb rating.
 
@@ -109,34 +105,34 @@ def prompt_existing_rating(
         'overwrite', 'skip', or 'quit'.
     """
     beep()
-    print("\n" + "="*60)
+    print("\n" + "=" * 60)
     print("⚠️  EXISTING RATING DETECTED")
-    print("="*60)
+    print("=" * 60)
     print(f"  CSV:  '{local_title}' ({local_year}) -> Your new score: {local_score}")
     print(f"  IMDb: Already rated: {existing_rating}/10")
-    print("-"*60)
+    print("-" * 60)
     while True:
         choice = input("  [O]verwrite / [S]kip / [Q]uit? ").strip().lower()
-        if choice in ('o', 'overwrite'):
-            return 'overwrite'
-        elif choice in ('s', 'skip'):
-            return 'skip'
-        elif choice in ('q', 'quit'):
-            return 'quit'
+        if choice in ("o", "overwrite"):
+            return "overwrite"
+        elif choice in ("s", "skip"):
+            return "skip"
+        elif choice in ("q", "quit"):
+            return "quit"
         print("  Invalid choice. Please enter O, S, or Q.")
 
 
 def prompt_confirm_match(
     local_title: str,
-    local_year: Optional[str],
-    local_director: Optional[str],
-    local_score: Optional[int],
+    local_year: str | None,
+    local_director: str | None,
+    local_score: int | None,
     imdb_title: str,
-    imdb_year: Optional[str],
+    imdb_year: str | None,
     imdb_id: str,
     confidence: float,
     is_low_confidence: bool = False,
-    candidates: Optional[list] = None
+    candidates: list | None = None,
 ) -> str:
     """Prompt user to confirm a match before rating.
 
@@ -156,13 +152,13 @@ def prompt_confirm_match(
         'apply', 'skip', 'quit', or 'select' (to show candidate selection).
     """
     beep()
-    print("\n" + "="*60)
+    print("\n" + "=" * 60)
     if is_low_confidence:
         print("⚠️  LOW CONFIDENCE MATCH - Please confirm")
     else:
         print("🎬  CONFIRM MATCH")
-    print("="*60)
-    print(f"  CSV Data (from FilmAffinity):")
+    print("=" * 60)
+    print("  CSV Data (from FilmAffinity):")
     print(f"    Title:    {local_title}")
     print(f"    Year:     {local_year or 'N/A'}")
     print(f"    Director: {local_director or 'N/A'}")
@@ -171,7 +167,7 @@ def prompt_confirm_match(
     print(f"    Title:    {imdb_title}")
     print(f"    Year:     {imdb_year or 'N/A'}")
     print(f"    URL:      https://www.imdb.com/title/{imdb_id}/")
-    print("-"*60)
+    print("-" * 60)
 
     has_candidates = candidates and len(candidates) > 1
     if has_candidates:
@@ -181,14 +177,14 @@ def prompt_confirm_match(
 
     while True:
         choice = input(prompt).strip().lower()
-        if choice in ('y', 'yes', 'a', 'apply', ''):
-            return 'apply'
-        elif choice in ('s', 'skip', 'n', 'no'):
-            return 'skip'
-        elif choice in ('q', 'quit'):
-            return 'quit'
-        elif choice in ('l', 'list', 'o', 'other', 'options') and has_candidates:
-            return 'select'
+        if choice in ("y", "yes", "a", "apply", ""):
+            return "apply"
+        elif choice in ("s", "skip", "n", "no"):
+            return "skip"
+        elif choice in ("q", "quit"):
+            return "quit"
+        elif choice in ("l", "list", "o", "other", "options") and has_candidates:
+            return "select"
         if has_candidates:
             print("  Invalid choice. Please enter Y, S, L, or Q (or press Enter for Yes).")
         else:
@@ -197,13 +193,13 @@ def prompt_confirm_match(
 
 def prompt_low_confidence_match(
     local_title: str,
-    local_year: Optional[str],
-    local_director: Optional[str],
-    local_score: Optional[int],
+    local_year: str | None,
+    local_director: str | None,
+    local_score: int | None,
     imdb_title: str,
-    imdb_year: Optional[str],
+    imdb_year: str | None,
     imdb_id: str,
-    confidence: float
+    confidence: float,
 ) -> str:
     """Prompt user to confirm a low-confidence match.
 
@@ -213,17 +209,24 @@ def prompt_low_confidence_match(
         'apply', 'skip', or 'quit'.
     """
     return prompt_confirm_match(
-        local_title, local_year, local_director, local_score,
-        imdb_title, imdb_year, imdb_id, confidence, is_low_confidence=True
+        local_title,
+        local_year,
+        local_director,
+        local_score,
+        imdb_title,
+        imdb_year,
+        imdb_id,
+        confidence,
+        is_low_confidence=True,
     )
 
 
 def prompt_select_candidate(
     local_title: str,
-    local_year: Optional[str],
-    local_director: Optional[str],
-    local_score: Optional[int],
-    candidates: list[dict]
+    local_year: str | None,
+    local_director: str | None,
+    local_score: int | None,
+    candidates: list[dict],
 ) -> str | dict:
     """Display a list of IMDb candidates and let user select the correct one.
 
@@ -238,45 +241,47 @@ def prompt_select_candidate(
         Dict with selected candidate info, 'skip', or 'quit'.
     """
     beep()
-    print("\n" + "="*70)
+    print("\n" + "=" * 70)
     print("🔍  AMBIGUOUS MATCH - Please select the correct movie")
-    print("="*70)
-    print(f"  CSV Data (from FilmAffinity):")
+    print("=" * 70)
+    print("  CSV Data (from FilmAffinity):")
     print(f"    Title:    {local_title}")
     print(f"    Year:     {local_year or 'N/A'}")
     print(f"    Director: {local_director or 'N/A'}")
     print(f"    Score:    {local_score}")
-    print("-"*70)
+    print("-" * 70)
     print("  IMDb Candidates:")
-    print("-"*70)
+    print("-" * 70)
 
     # Filter and display candidates
-    valid_candidates = [c for c in candidates if c.get('movieID')][:8]  # Max 8 options
+    valid_candidates = [c for c in candidates if c.get("movieID")][:8]  # Max 8 options
 
     if not valid_candidates:
         print("  No candidates found.")
-        print("-"*70)
+        print("-" * 70)
         print("  [M]anual IMDb ID / [S]kip / [Q]uit?")
         while True:
             choice = input("  Your choice: ").strip().lower()
-            if choice in ('s', 'skip'):
-                return 'skip'
-            elif choice in ('q', 'quit'):
-                return 'quit'
-            elif choice in ('m', 'manual'):
+            if choice in ("s", "skip"):
+                return "skip"
+            elif choice in ("q", "quit"):
+                return "quit"
+            elif choice in ("m", "manual"):
                 # Prompt for manual IMDb ID entry
-                print("  Enter IMDb ID (e.g., tt1234567) or URL (e.g., https://www.imdb.com/title/tt1234567/):")
+                print(
+                    "  Enter IMDb ID (e.g., tt1234567) or URL (e.g., https://www.imdb.com/title/tt1234567/):"
+                )
                 manual_input = input("  IMDb ID/URL: ").strip()
                 parsed_id = parse_imdb_id(manual_input)
                 if parsed_id:
                     print(f"  Using IMDb ID: tt{parsed_id}")
                     return {
-                        'movieID': parsed_id,
-                        'title': 'Manual Entry',
-                        'year': None,
-                        'score': 1.0,
-                        'selected_by_user': True,
-                        'manual_entry': True
+                        "movieID": parsed_id,
+                        "title": "Manual Entry",
+                        "year": None,
+                        "score": 1.0,
+                        "selected_by_user": True,
+                        "manual_entry": True,
                     }
                 else:
                     print("  Invalid IMDb ID or URL. Please try again.")
@@ -284,11 +289,11 @@ def prompt_select_candidate(
             print("  Invalid choice. Enter M, S, or Q.")
 
     for i, cand in enumerate(valid_candidates, start=1):
-        title = cand.get('title', 'Unknown')
-        year = cand.get('year', 'N/A')
-        directors = cand.get('directors', '')
-        movie_id = cand.get('movieID', '')
-        score = cand.get('base_score', 0)
+        title = cand.get("title", "Unknown")
+        year = cand.get("year", "N/A")
+        directors = cand.get("directors", "")
+        movie_id = cand.get("movieID", "")
+        score = cand.get("base_score", 0)
 
         # Format the display with clickable IMDb URL
         director_str = f" - {directors}" if directors else ""
@@ -296,7 +301,7 @@ def prompt_select_candidate(
         print(f"  [{i}] {title} ({year}){director_str}")
         print(f"      {imdb_url}  (confidence: {score:.1%})")
 
-    print("-"*70)
+    print("-" * 70)
     print(f"  Enter 1-{len(valid_candidates)} to select, [M]anual IMDb ID, [S]kip, or [Q]uit")
 
     while True:
@@ -308,35 +313,37 @@ def prompt_select_candidate(
             if 1 <= num <= len(valid_candidates):
                 selected = valid_candidates[num - 1]
                 return {
-                    'movieID': selected['movieID'],
-                    'title': selected['title'],
-                    'year': selected['year'],
-                    'score': selected['base_score'],
-                    'selected_by_user': True
+                    "movieID": selected["movieID"],
+                    "title": selected["title"],
+                    "year": selected["year"],
+                    "score": selected["base_score"],
+                    "selected_by_user": True,
                 }
             else:
                 print(f"  Please enter a number between 1 and {len(valid_candidates)}")
                 continue
 
         choice_lower = choice.lower()
-        if choice_lower in ('s', 'skip'):
-            return 'skip'
-        elif choice_lower in ('q', 'quit'):
-            return 'quit'
-        elif choice_lower in ('m', 'manual'):
+        if choice_lower in ("s", "skip"):
+            return "skip"
+        elif choice_lower in ("q", "quit"):
+            return "quit"
+        elif choice_lower in ("m", "manual"):
             # Prompt for manual IMDb ID entry
-            print("  Enter IMDb ID (e.g., tt1234567) or URL (e.g., https://www.imdb.com/title/tt1234567/):")
+            print(
+                "  Enter IMDb ID (e.g., tt1234567) or URL (e.g., https://www.imdb.com/title/tt1234567/):"
+            )
             manual_input = input("  IMDb ID/URL: ").strip()
             parsed_id = parse_imdb_id(manual_input)
             if parsed_id:
                 print(f"  Using IMDb ID: tt{parsed_id}")
                 return {
-                    'movieID': parsed_id,
-                    'title': 'Manual Entry',
-                    'year': None,
-                    'score': 1.0,
-                    'selected_by_user': True,
-                    'manual_entry': True
+                    "movieID": parsed_id,
+                    "title": "Manual Entry",
+                    "year": None,
+                    "score": 1.0,
+                    "selected_by_user": True,
+                    "manual_entry": True,
                 }
             else:
                 print("  Invalid IMDb ID or URL. Please try again.")
