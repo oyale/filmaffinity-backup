@@ -140,7 +140,6 @@
 
 | Issue | Priority | Notes |
 |-------|----------|-------|
-| `tests.py` in root (legacy) | Low | Consider removing, using `tests/` only |
 | Some debug prints in uploader | Low | Replace with proper logging |
 | Hardcoded wait times | Medium | Make configurable |
 | No retry on FilmAffinity scraper | Medium | Add similar retry logic as uploader |
