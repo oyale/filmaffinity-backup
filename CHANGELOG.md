@@ -7,9 +7,25 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.2.0] - 2025-12-14
+
+### Added
+
+- Dockerfile for containerization
+- Conda recipe for package management
+- JSON export format support (`--format json`)
+- Automated PyPI publishing workflow
+- Dependabot configuration for automated dependency updates
+- GitHub Actions coverage reporting and thresholds
+- Type checking enforcement with mypy
+- Progress percentage display in upload status
+- `--version` flag to display version information
+- `--quiet` flag to suppress non-essential output
+
 ## [1.1.0] - 2025-12-13
 
 ### Added
+
 - CSV format validation before processing with `--validate-only` and `--skip-validation` flags
 - Custom exception classes for better error handling (`ScraperError`, `NetworkError`, `ConnectionFailedError`, `TimeoutError`, `RateLimitError`, `UserNotFoundError`, `ParseError`)
 - User-friendly error messages with troubleshooting tips for network failures
@@ -19,10 +35,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Comprehensive unit tests for exporters, error handling, and CSV validation
 
 ### Changed
+
 - `request_with_retry` now raises specific exceptions instead of returning failed responses
 - CLI now catches and displays network errors with helpful context
 
 ### Fixed
+
 - Fixed potential race condition in session file writes by implementing atomic writes and file locking
 - Fixed FilmAffinity pagination edge cases:
   - Empty pages are now handled gracefully
@@ -33,6 +51,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [1.0.0] - 2025-12-11
 
 ### Added
+
 - FilmAffinity scraper with CSV export
 - Multi-language support (English and Spanish)
 - Resume support for interrupted sessions (`--resume`)
@@ -47,6 +66,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Configuration file support
 - Initial ROADMAP.md
 
-[Unreleased]: https://github.com/oyale/filmaffinity-backup/compare/v1.1.0...HEAD
+[Unreleased]: https://github.com/oyale/filmaffinity-backup/compare/v1.2.0...HEAD
+[1.2.0]: https://github.com/oyale/filmaffinity-backup/compare/v1.1.0...v1.2.0
 [1.1.0]: https://github.com/oyale/filmaffinity-backup/compare/v1.0.0...v1.1.0
 [1.0.0]: https://github.com/oyale/filmaffinity-backup/releases/tag/v1.0.0
