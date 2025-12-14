@@ -76,7 +76,7 @@ python_functions = ["test_*"]
 markers = [
     "integration: marks tests as integration tests (require network access)",
 ]
-addopts = "-v --tb=short -m 'not integration'"
+addopts = "-v --tb=short -m 'not integration' --cov --cov-report=term-missing --cov-report=xml --cov-fail-under=40"
 
 [tool.ruff]
 line-length = 100
@@ -105,4 +105,23 @@ disallow_untyped_defs = false
 exclude = [
     "tests/",
     "scripts/",
+]
+
+[tool.coverage.run]
+source = ["filmaffinity", "imdb_uploader"]
+omit = [
+    "*/tests/*",
+    "*/__pycache__/*",
+    "*/__init__.py",
+]
+
+[tool.coverage.report]
+exclude_lines = [
+    "pragma: no cover",
+    "def __repr__",
+    "raise AssertionError",
+    "raise NotImplementedError",
+    "if __name__ == .__main__.:",
+    "class .*\\bProtocol\\):",
+    "@(abc\\.)?abstractmethod",
 ]
