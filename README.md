@@ -2,142 +2,112 @@
 
 [![Tests](https://github.com/oyale/filmaffinity-backup/actions/workflows/main.yml/badge.svg)](https://github.com/oyale/filmaffinity-backup/actions/workflows/main.yml)
 [![codecov](https://codecov.io/gh/oyale/filmaffinity-backup/branch/main/graph/badge.svg)](https://codecov.io/gh/oyale/filmaffinity-backup)
+[![PyPI - Version](https://img.shields.io/pypi/v/filmaffinity-backup)](https://pypi.org/project/filmaffinity-backup/)
+[![Conda - Version](https://anaconda.org/oyale/filmaffinity-backup/badges/version.svg)](https://anaconda.org/oyale/filmaffinity-backup)
 [![Python 3.9+](https://img.shields.io/badge/python-3.9+-blue.svg)](https://www.python.org/downloads/)
 [![License: AGPL v3](https://img.shields.io/badge/License-AGPL%20v3-blue.svg)](https://www.gnu.org/licenses/agpl-3.0)
 
-Backup your [FilmAffinity](https://www.filmaffinity.com/) ratings and lists to CSV, then upload them to IMDb.
+Backup your [FilmAffinity](https://www.filmaffinity.com/) ratings and lists, then push them to IMDb with a single workflow.
+
+> **Note**: Forked from [Ignacio Heredia/filmaffinity-backup](https://github.com/IgnacioHeredia/filmaffinity-backup) with IMDb upload support and numerous UX improvements.
+
+> ⚠️ **Responsible use**: This project relies on web scraping and browser automation. Respect FilmAffinity/IMDb ToS, keep request rates low (already throttled), and only use it for personal archiving. The authors are not responsible for misuse or account restrictions that stem from automation.
 
 ## Table of Contents
 
-1. [Features](#features)
+1. [Overview](#overview)
 2. [Installation](#installation)
 3. [Quick Start](#quick-start)
-4. [FilmAffinity Backup](#part-1-filmaffinity-backup)
-5. [IMDb Uploader](#part-2-imdb-uploader)
-6. [Requirements](#requirements)
-7. [Usage](#usage)
-8. [Configuration File](#configuration-file)
-9. [Session Persistence](#session-persistence)
-10. [Troubleshooting](#troubleshooting)
-11. [License](#license)
-12. [Acknowledgments](#acknowledgments)
+4. [Usage](#usage)
+5. [Documentation](#documentation)
+6. [Project Structure](#project-structure)
+7. [Troubleshooting](#troubleshooting)
+8. [License](#license)
+9. [Acknowledgments](#acknowledgments)
 
 ---
 
+## Overview
 
-> **Note**: Forked from [Ignacio Heredia/filmaffinity-backup](https://github.com/IgnacioHeredia/filmaffinity-backup) with IMDb upload support and other improvements.
+FilmAffinity Backup & IMDb Uploader is a two-part toolkit:
 
-> ⚠️ **Disclaimer**: This tool uses web scraping and browser automation techniques. Please use it responsibly:
->
-> * Respect the Terms of Service of FilmAffinity and IMDb
-> * Use reasonable delays between requests (built-in by default)
-> * Only use this tool for personal, non-commercial purposes
-> * Excessive or automated access may result in IP blocking or account suspension
-> * The authors are not responsible for any misuse or consequences arising from using this tool
+1. **FilmAffinity Backup** scrapes your watched list and custom lists into CSV/JSON/Letterboxd files.
+2. **IMDb Uploader** ingests those exports and syncs the ratings to IMDb using Selenium.
 
-## Features
+### Highlights
 
-* **Backup FilmAffinity data** - Export watched movies and custom lists to CSV
-* **Export to Letterboxd** - Generate Letterboxd-compatible CSV for easy import
-* **Upload to IMDb** - Transfer your ratings to IMDb using Selenium automation
-* **English title support** - Use English version of FilmAffinity for better IMDb matching
-* **Resume support** - Continue interrupted sessions
-* **Rate limiting** - Automatic retry with exponential backoff
+- The scraper captures titles, original titles, year, country, directors, genres, scores, and FilmAffinity IDs.
+- Letterboxd-ready CSV and JSON exports let you reuse the data in other services or custom scripts.
+- Built-in delays, retries, and resume support keep long backups and uploads resilient.
+- The uploader offers dry-run analysis, fuzzy matching with manual overrides, unattended mode, and skipped-movie retry buckets.
+- Config files and session persistence help automate recurring migrations.
 
 ---
 
 ## Installation
 
-### From GitHub
-
 ```bash
-# Basic installation (FilmAffinity backup only)
-pip install git+https://github.com/oyale/filmaffinity-backup.git
+# FilmAffinity backup only
+pip install filmaffinity-backup
 
-# Full installation (includes IMDb uploader)
-pip install "filmaffinity-backup[all] @ git+https://github.com/oyale/filmaffinity-backup.git"
+# Full toolchain (backup + IMDb uploader dependencies)
+pip install "filmaffinity-backup[all]"
 ```
 
-### For Development
+Conda users can grab the base package from the oyale channel:
+
+```bash
+conda install -c oyale filmaffinity-backup
+```
+
+> Conda builds ship the base CLI; use pip extras if you need optional `[all]` dependencies on top.
+
+For development:
 
 ```bash
 git clone https://github.com/oyale/filmaffinity-backup.git
 cd filmaffinity-backup
-
-# Editable install with all dependencies
 pip install -e ".[all]"
 ```
 
-### Manual Install
+Legacy/manual install:
 
 ```bash
 pip install -r requirements.txt
 ```
 
-## Project Structure
-
-```bash
-filmaffinity-backup/
-├── filmaffinity/          # FilmAffinity scraper package
-│   ├── scraper.py         # Web scraping functions
-│   └── cli.py             # Command-line interface
-├── imdb_uploader/         # IMDb uploader package
-│   ├── uploader.py        # Upload logic & Selenium automation
-│   └── cli.py             # Command-line interface
-├── tests/                 # Unit tests
-├── data/                  # Downloaded CSV files (per user)
-└── pyproject.toml         # Python packaging configuration
-```
+---
 
 ## Quick Start
 
 ```bash
-# Step 1: Backup your FilmAffinity ratings
+# 1) Export your FilmAffinity data (lists + watched)
 fa-backup YOUR_USER_ID
 
-# Step 2: Upload to IMDb
-fa-upload --csv data/YOUR_USER_ID/watched.csv --auto-rate
+# 2) Upload the watched CSV to IMDb
+env IMDB_USERNAME="you@example.com" IMDB_PASSWORD="super-secret" \
+  fa-upload --csv data/YOUR_USER_ID/watched.csv --auto-login --auto-rate
 ```
 
-> **Tip**: If running without installing, use `python -m filmaffinity.cli` and `python -m imdb_uploader.cli` instead.
+> Running from the repo? Replace `fa-backup` with `python -m filmaffinity.cli` and `fa-upload` with `python -m imdb_uploader.cli`.
 
 ---
 
-## Part 1: FilmAffinity Backup
-
-Backup your FilmAffinity watched movies and custom lists to CSV files.
-
-## Information Saved
-
-* **list movies**: For each movie in the list, it saves:
-  * `movie title`
-  * `original title` (fetched from the movie detail page)
-  * `movie year`
-  * `movie country`
-  * `movie directors`
-  * `user score`
-  * `Filmaffinity score`
-  * `Filmaffinity movie id`
-* **watched movies**: same as list movies, plus the `movie genre`
-
 ## Usage
 
-To find your `user_id`, go to your ratings page and copy the ID from the URL:
-`https://www.filmaffinity.com/en/userratings.php?user_id={YOUR_ID}`
+### FilmAffinity Backup (`fa-backup`)
 
-```bash
-# Basic backup (lists + watched)
-fa-backup YOUR_USER_ID
+- Discover your `user_id` from `https://www.filmaffinity.com/en/userratings.php?user_id=<ID>` and run `fa-backup <ID>`.
+- Use `--skip-lists`, `--resume`, `--lang {en,es}`, `--format letterboxd`, or `--format json` depending on your workflow.
+- Output lives under `./data/<user_id>/` by default.
 
-# Only backup watched films (skip lists)
-fa-backup YOUR_USER_ID --skip-lists
+See [`docs/filmaffinity-backup.md`](docs/filmaffinity-backup.md) for the full CLI reference, export formats, and rate-limiting details.
 
-# Use Spanish titles instead of English
-fa-backup YOUR_USER_ID --lang es
+### IMDb Uploader (`fa-upload`)
 
-# Resume an interrupted session
-fa-backup YOUR_USER_ID --resume
-```
+- Start with a dry run: `fa-upload --csv data/<ID>/watched.csv --dry-run --dry-run-output imdb_matches.csv`.
+- When ready, set `IMDB_USERNAME`/`IMDB_PASSWORD`, add `--auto-login --auto-rate`, and optionally `--unattended` for zero prompts.
+- Skipped movies are saved under `skipped/`; rerun them with `--retry ambiguous`, `--retry not_found`, etc.
 
 Your data will be saved to the `./data/{user_id}/` folder.
 
@@ -182,294 +152,46 @@ By default, the script scrapes FilmAffinity's English version (`/en/`). Using `-
 
 The script intentionally waits 5s between each parsing request to avoid getting the IP blocked by the FilmAffinity server. If a 429 (Too Many Requests) error is encountered, the script will automatically retry with exponential backoff (30s → 60s → 120s).
 
+Check [`docs/imdb-uploader.md`](docs/imdb-uploader.md) for advanced workflows, command reference, config files, and troubleshooting tips.
+
 ---
 
-## Part 2: IMDb Uploader
+## Documentation
 
-Upload your FilmAffinity ratings to IMDb using Selenium automation. Supports dry-run mode for verifying mappings before making any changes.
+- [`docs/filmaffinity-backup.md`](docs/filmaffinity-backup.md) – FilmAffinity backup usage, options, and exports.
+- [`docs/imdb-uploader.md`](docs/imdb-uploader.md) – IMDb uploader workflows, CLI flags, and troubleshooting.
+- [CONTRIBUTING.md](CONTRIBUTING.md) – Development guidelines.
+- [ROADMAP.md](ROADMAP.md) – Upcoming features and backlog.
 
-### Recommended Workflow
+---
 
-```bash
-# Step 1: Backup FilmAffinity ratings
-fa-backup YOUR_USER_ID --skip-lists
-
-# Step 2: Dry-run to verify IMDb mappings
-fa-upload --csv data/YOUR_USER_ID/watched.csv --dry-run
-
-# Step 3: Upload ratings
-export IMDB_USERNAME="your_email"
-export IMDB_PASSWORD="your_password"
-fa-upload --csv data/YOUR_USER_ID/watched.csv --auto-login --auto-rate
-```
-
-### Uploader Features
-
-* **Dry-run mode**: Maps FilmAffinity titles to IMDb IDs without making any changes on IMDb.
-* **Automated rating**: Uses Selenium to log in to IMDb and rate movies based on the CSV data.
-* **Fuzzy matching**: Matches titles using fuzzy logic, with boosts for matching years and directors.
-* **English title support**: Works best with CSVs generated using `--lang en` (titles already in English).
-* **Original title fallback**: When using Spanish CSVs, can use the `original title` column for better IMDb matching.
-* **Existing rating detection**: Detects if a movie is already rated on IMDb and prompts to skip or overwrite.
-* **Same rating skip**: Automatically skips movies that are already rated with the same score on IMDb.
-* **Manual IMDb ID entry**: When no match is found, manually enter an IMDb ID or URL.
-* **Unattended mode**: Batch processing without user interaction.
-* **Skipped movies export**: Saves skipped movies to separate CSV files by category for selective re-processing.
-* **Retry by category**: Re-run only specific categories of skipped movies (ambiguous, not found, already rated, etc.).
-* **CAPTCHA detection**: Detects CAPTCHA challenges during login and prompts user to solve them.
-* **Rate limiting**: Automatic retry with exponential backoff on HTTP errors.
-* **Config file support**: Save your settings to a JSON config file for easy reuse.
-* **Session persistence**: Resume interrupted uploads from where you left off.
-
-### Requirements
-
-* Python 3.9+
-* Selenium and webdriver-manager
-* Cinemagoer (IMDbPY fork)
-
-Install with:
+## Project Structure
 
 ```bash
-pip install -e ".[imdb]"
+filmaffinity-backup/
+├── filmaffinity/          # FilmAffinity scraper package & CLI
+├── imdb_uploader/         # IMDb uploader package & CLI
+├── tests/                 # Unit and integration tests
+├── data/                  # User exports (created at runtime)
+└── pyproject.toml         # Python packaging metadata
 ```
 
-Or manually:
-
-```bash
-pip install selenium webdriver-manager cinemagoer
-```
-
-### Uploader Usage
-
-#### Dry-run Mode
-
-Verify mappings between FilmAffinity titles and IMDb IDs:
-
-```bash
-fa-upload --csv data/YOUR_USER_ID/watched.csv --dry-run --dry-run-output imdb_matches.csv
-```
-
-This generates a CSV file (`imdb_matches.csv`) with the following columns:
-
-* `local_title`: Title from the FilmAffinity CSV
-* `local_year`: Year from the FilmAffinity CSV
-* `local_director`: Director(s) from the FilmAffinity CSV
-* `imdb_id`: Matched IMDb ID
-* `imdb_title`: Matched IMDb title
-* `imdb_year`: Matched IMDb year
-* `score`: Confidence score of the match
-* `query`: Search query used
-* `result_count`: Number of results returned by IMDb
-
-#### Automated Rating
-
-To automatically rate movies on IMDb:
-
-1. Set your IMDb credentials as environment variables:
-
-   ```bash
-   export IMDB_USERNAME="your_username"
-   export IMDB_PASSWORD="your_password"
-   ```
-
-2. Run the script with the `--auto-rate` flag:
-
-   ```bash
-   fa-upload --csv data/YOUR_USER_ID/watched.csv --auto-login --auto-rate
-   ```
-
-#### Unattended Mode (Batch Processing)
-
-For fully automated batch processing without any user prompts:
-
-```bash
-fa-upload --csv data/YOUR_USER_ID/watched.csv --auto-login --auto-rate --unattended
-```
-
-In unattended mode:
-
-* Ambiguous matches (title/year mismatch) are automatically skipped
-* Already-rated movies are automatically skipped
-* Failed auto-ratings are skipped (no manual fallback)
-* All skipped items are saved to a CSV file for later review
-
-#### No-Overwrite Mode
-
-To only add new ratings without overwriting existing ones, but still handle ambiguous matches interactively:
-
-```bash
-fa-upload --csv data/YOUR_USER_ID/watched.csv --auto-login --auto-rate --no-overwrite
-```
-
-This is useful when you want to:
-
-* Skip movies you've already rated on IMDb
-* But still manually resolve title/year mismatches when the match is ambiguous
-
-```bash
-# Retry already-rated movies (to update ratings)
-fa-upload --retry already_rated --auto-login --auto-rate
-```
-
-#### Handling Ambiguous Matches
-
-When a movie match is ambiguous (title or year doesn't match exactly), the script shows a selection dialog:
-
-```text
-======================================================================
-🔍  AMBIGUOUS MATCH - Please select the correct movie
-======================================================================
-  CSV Data (from FilmAffinity):
-    Title:    El secreto de sus ojos
-    Year:     2009
-    Director: Juan José Campanella
-----------------------------------------------------------------------
-  IMDb Candidates:
-----------------------------------------------------------------------
-  [1] The Secret in Their Eyes (2009) - Juan José Campanella
-      IMDb ID: tt1305806 | Confidence: 85.3%
-  [2] Secret in Their Eyes (2015) - Billy Ray
-      IMDb ID: tt1741273 | Confidence: 72.1%
-----------------------------------------------------------------------
-  Enter 1-2 to select, [M]anual IMDb ID, [S]kip, or [Q]uit
-```
-
-#### Re-processing Skipped Movies
-
-After a run, skipped movies are saved to separate CSV files in the `skipped/` directory, organized by category:
-
-* `skipped_ambiguous.csv` - Movies with ambiguous IMDb matches
-* `skipped_not_found.csv` - Movies not found on IMDb
-* `skipped_already_rated.csv` - Movies already rated on IMDb (different score)
-* `skipped_same_rating.csv` - Movies already rated with the same score (no action needed)
-* `skipped_auto_rate_failed.csv` - Movies where auto-rating failed
-* `skipped_user_choice.csv` - Movies manually skipped by user
-* `skipped_all.csv` - Combined file with all skipped movies
-
-Use the `--retry` option to re-process specific categories:
-
-```bash
-# Retry all skipped movies
-fa-upload --retry all --auto-login --auto-rate
-
-# Retry only ambiguous matches (with manual selection)
-fa-upload --retry ambiguous --auto-login --auto-rate
-
-# Retry movies that weren't found (maybe IMDb added them since)
-fa-upload --retry not_found --auto-login --auto-rate
-
-# Retry already-rated movies (to update ratings)
-fa-upload --retry already_rated --auto-login --auto-rate
-
-# Use a custom skipped directory
-fa-upload --retry all --skipped-dir my_skipped/ --auto-login --auto-rate
-```
-
-#### Command Line Options (fa-upload)
-
-| Option | Description |
-|--------|-------------|
-| `--csv` | Path to the FilmAffinity CSV file (required unless using `--retry` or `--resume`) |
-| `--dry-run` | Only map titles to IMDb IDs, don't rate anything |
-| `--dry-run-output` | Output path for dry-run CSV (default: `imdb_matches.csv`) |
-| `--auto-login` | Try automated login using `IMDB_USERNAME`/`IMDB_PASSWORD` env vars |
-| `--auto-rate` | Automatically click rating stars (best-effort) |
-| `--headless` | Run browser in headless mode (no UI) |
-| `--no-overwrite` | Never overwrite existing IMDb ratings (auto-skip already rated) |
-| `--unattended` | Run without user interaction, skip ambiguous matches and existing ratings |
-| `--skipped-dir` | Output directory for skipped CSV files by category (default: `skipped/`) |
-| `--retry` | Re-run using skipped movies: `all`, `ambiguous`, `not_found`, `already_rated`, `auto_rate_failed`, `user_skipped` |
-| `--start` | Start processing from a specific index in the CSV |
-| `--limit` | Limit the number of items processed |
-| `--confirm-threshold` | Confidence threshold for low-confidence warnings (default: 0.75) |
-| `--no-confirm` | Skip all confirmation prompts (use with caution) |
-| `--debug` | Enable debug output for troubleshooting |
-| `--config` | Path to JSON config file (searches `upload_imdb.json`, `~/.config/upload_imdb/config.json` by default) |
-| `--save-config PATH` | Save current options to a config file and exit |
-| `--show-config` | Show current configuration and exit |
-| `--resume` | Resume previous interrupted session |
-| `--clear-session` | Clear saved session and start fresh |
-| `--session-file` | Path to session file (default: `.upload_imdb_session.json`) |
-
-#### Configuration File
-
-You can save your frequently used options to a JSON config file:
-
-```bash
-# Save current options to config file
-fa-upload --csv data/YOUR_USER_ID/watched.csv --auto-login --auto-rate --save-config upload_imdb.json
-
-# Show current configuration
-fa-upload --show-config
-
-# Use a specific config file
-fa-upload --csv data/YOUR_USER_ID/watched.csv --config my_config.json
-```
-
-Example config file (`upload_imdb.json`):
-
-```json
-{
-    "headless": false,
-    "auto_login": true,
-    "auto_rate": true,
-    "confirm_threshold": 0.75,
-    "no_overwrite": false,
-    "skipped_dir": "skipped",
-    "max_retries": 3
-}
-```
-
-The script searches for config files in this order:
-
-1. Path specified with `--config`
-2. `upload_imdb.json` (current directory)
-3. `~/.config/upload_imdb/config.json`
-4. `~/.upload_imdb.json`
-
-#### Session Persistence
-
-The script automatically saves progress, allowing you to resume interrupted sessions:
-
-```bash
-# Start a new session
-fa-upload --csv data/YOUR_USER_ID/watched.csv --auto-login --auto-rate
-
-# If interrupted, resume from where you left off
-fa-upload --resume
-
-# Clear session and start fresh
-fa-upload --csv data/YOUR_USER_ID/watched.csv --clear-session
-```
-
-Session state includes:
-
-* Current position in the CSV
-* Statistics (applied, skipped counts)
-* List of processed movies
-
-## Notes
-
-* **Dry-run recommended**: Always run the script in dry-run mode first to verify mappings.
-* **IMDb login**: The script supports both manual and automated login. Automated login may fail if IMDb changes its login flow.
-* **Terms of Service**: Automated interactions with IMDb may violate their terms of service. Use responsibly.
+---
 
 ## Troubleshooting
 
-* **Cinemagoer not installed**: If `cinemagoer` (IMDbPY fork) is not installed, the script will skip lookups in dry-run mode. Install it using:
+- **Cinemagoer missing?** Install it separately: `pip install cinemagoer`.
+- **WebDriver issues?** Keep your browser updated so webdriver-manager can download a matching driver.
+- **Automation blocked?** CAPTCHA or ToS changes can interrupt uploads—fall back to manual steps and resume once cleared.
 
-  ```bash
-  pip install cinemagoer
-  ```
-
-* **WebDriver issues**: Ensure your browser and WebDriver versions are compatible. The script uses webdriver-manager to auto-download the correct driver.
+---
 
 ## License
 
-This project is licensed under the AGPL-3.0-or-later License. See the [LICENSE](LICENSE) file for details.
+This project is licensed under the AGPL-3.0-or-later License. See [LICENSE](LICENSE) for details.
 
 ## Acknowledgments
 
-* Original FilmAffinity backup tool by [Ignacio Heredia](https://github.com/IgnacioHeredia/filmaffinity-backup)
-* [Cinemagoer](https://github.com/cinemagoer/cinemagoer) (IMDbPY fork) for IMDb data access
-* [Selenium](https://www.selenium.dev/) for browser automation
+- Original FilmAffinity backup tool by [Ignacio Heredia](https://github.com/IgnacioHeredia/filmaffinity-backup)
+- [Cinemagoer](https://github.com/cinemagoer/cinemagoer) for IMDb metadata
+- [Selenium](https://www.selenium.dev/) for browser automation
