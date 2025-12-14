@@ -13,16 +13,17 @@ Backup your [FilmAffinity](https://www.filmaffinity.com/) ratings and lists to C
 
 1. [Features](#features)
 2. [Installation](#installation)
-3. [Quick Start](#quick-start)
-4. [FilmAffinity Backup](#part-1-filmaffinity-backup)
-5. [IMDb Uploader](#part-2-imdb-uploader)
-6. [Requirements](#requirements)
-7. [Usage](#usage)
-8. [Configuration File](#configuration-file)
-9. [Session Persistence](#session-persistence)
-10. [Troubleshooting](#troubleshooting)
-11. [License](#license)
-12. [Acknowledgments](#acknowledgments)
+3. [Docker](#docker)
+4. [Quick Start](#quick-start)
+5. [FilmAffinity Backup](#part-1-filmaffinity-backup)
+6. [IMDb Uploader](#part-2-imdb-uploader)
+7. [Requirements](#requirements)
+8. [Usage](#usage)
+9. [Configuration File](#configuration-file)
+10. [Session Persistence](#session-persistence)
+11. [Troubleshooting](#troubleshooting)
+12. [License](#license)
+13. [Acknowledgments](#acknowledgments)
 
 ---
 
@@ -91,6 +92,43 @@ pip install -e ".[all]"
 ```bash
 pip install -r requirements.txt
 ```
+
+## Docker
+
+A Dockerfile is provided for containerized usage.
+
+### Build the Image
+
+```bash
+docker build -t filmaffinity-backup .
+```
+
+### Run the Container
+
+Create a local `data` directory to store CSV files:
+
+```bash
+mkdir -p data
+
+```
+
+Run the container using the `backup` or `upload` commands:
+
+```bash
+# Backup FilmAffinity data
+# Usage: docker run ... [image_name] backup [arguments]
+docker run -it --rm -v "$(pwd)/data":/app/data filmaffinity-backup backup $YOUR_USER_ID
+
+# Upload to IMDb
+# Usage: docker run ... [image_name] upload [arguments]
+docker run -it --rm -v "$(pwd)/data":/app/data filmaffinity-backup upload --csv /app/data/$YOUR_USER_ID/watched.csv --auto-rate
+
+```
+
+> **Note**:
+>
+> * The `-v "$(pwd)/data":/app/data` flag mounts your local `data` folder to the container.
+> * **Important:** When referencing files in the upload command, use the **container path** (`/app/data/...`), not your local path.
 
 ## Project Structure
 
