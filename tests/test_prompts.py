@@ -119,3 +119,40 @@ class TestBeepFunction:
         beep()
         captured = capsys.readouterr()
         assert captured.out == "\a"
+
+
+class TestParseImdbIdEdgeCases:
+    """Additional edge case tests for parse_imdb_id."""
+
+    def test_imdb_id_with_leading_zeros(self):
+        """IDs with leading zeros should preserve them."""
+        assert parse_imdb_id("tt0000001") == "0000001"
+        assert parse_imdb_id("0000001") == "0000001"
+
+    def test_imdb_url_with_fragments(self):
+        """URLs with fragment identifiers."""
+        assert parse_imdb_id("https://www.imdb.com/title/tt1234567/#reviews") == "1234567"
+
+    def test_imdb_url_with_extra_path(self):
+        """URLs with extra path components."""
+        assert parse_imdb_id("https://www.imdb.com/title/tt1234567/fullcredits") == "1234567"
+        assert parse_imdb_id("https://www.imdb.com/title/tt1234567/reviews") == "1234567"
+
+    def test_longer_imdb_ids(self):
+        """Modern titles can have 8+ digit IDs."""
+        assert parse_imdb_id("tt12345678") == "12345678"
+        assert parse_imdb_id("12345678") == "12345678"
+
+    def test_imdb_pro_url(self):
+        """IMDb Pro URLs."""
+        assert parse_imdb_id("https://pro.imdb.com/title/tt1234567/") == "1234567"
+
+    def test_minimum_valid_length(self):
+        """Test boundary of minimum ID length (5 digits)."""
+        assert parse_imdb_id("12345") == "12345"
+        assert parse_imdb_id("1234") is None
+
+    def test_non_imdb_url_with_tt_pattern(self):
+        """Non-IMDb URLs containing tt pattern should not match."""
+        # This tests that the regex properly anchors to imdb.com
+        assert parse_imdb_id("https://example.com/title/tt1234567") is None

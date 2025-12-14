@@ -1058,5 +1058,201 @@ class TestCSVValidation:
         assert exc_info.value.code == 1
 
 
+class TestSaveConfig:
+    """Tests for save_config function."""
+
+    def test_save_config_creates_file(self):
+        """Test that save_config creates a new config file."""
+        with tempfile.TemporaryDirectory() as tmpdir:
+            config_path = os.path.join(tmpdir, "config.json")
+            test_config = {"headless": True, "auto_rate": False}
+
+            config.save_config(test_config, config_path)
+
+            assert os.path.exists(config_path)
+            with open(config_path) as f:
+                saved_config = json.load(f)
+            assert saved_config["headless"] is True
+            assert saved_config["auto_rate"] is False
+
+    def test_save_config_creates_parent_dirs(self):
+        """Test that save_config creates parent directories if needed."""
+        with tempfile.TemporaryDirectory() as tmpdir:
+            config_path = os.path.join(tmpdir, "subdir", "nested", "config.json")
+
+            config.save_config({"test": "value"}, config_path)
+
+            assert os.path.exists(config_path)
+
+    def test_save_config_overwrites_existing(self):
+        """Test that save_config overwrites existing file."""
+        with tempfile.TemporaryDirectory() as tmpdir:
+            config_path = os.path.join(tmpdir, "config.json")
+
+            config.save_config({"version": 1}, config_path)
+            config.save_config({"version": 2}, config_path)
+
+            with open(config_path) as f:
+                saved_config = json.load(f)
+            assert saved_config["version"] == 2
+
+
+class TestCreateDefaultConfig:
+    """Tests for create_default_config function."""
+
+    def test_create_default_config(self):
+        """Test that create_default_config creates a config with defaults."""
+        with tempfile.TemporaryDirectory() as tmpdir:
+            config_path = os.path.join(tmpdir, "config.json")
+
+            config.create_default_config(config_path)
+
+            assert os.path.exists(config_path)
+            with open(config_path) as f:
+                saved_config = json.load(f)
+            # Should have default values
+            assert "headless" in saved_config
+            assert "auto_rate" in saved_config
+
+
+class TestSessionStateEdgeCases:
+    """Additional edge case tests for SessionState class."""
+
+    def test_session_state_get_resume_info_no_session(self):
+        """Test get_resume_info when no session is active."""
+        session = config.SessionState("test.json")
+        info = session.get_resume_info()
+        assert "No active session" in info
+
+    def test_session_state_get_resume_info_with_session(self):
+        """Test get_resume_info with active session."""
+        session = config.SessionState("test.json")
+        session.csv_path = "movies.csv"
+        session.current_index = 50
+        session.stats = {"applied": 40}
+        session.skipped_items = [{"title": "Movie1"}, {"title": "Movie2"}]
+
+        info = session.get_resume_info()
+        assert "movies.csv" in info
+        assert "50" in info
+        assert "40" in info
+        assert "2" in info  # skipped count
+
+    def test_session_state_not_resumable_no_path(self):
+        """Test is_resumable when csv_path is None."""
+        session = config.SessionState("test.json")
+        session.current_index = 10
+        assert session.is_resumable("test.csv") is False
+
+    def test_session_state_not_resumable_different_file(self):
+        """Test is_resumable with different CSV file."""
+        session = config.SessionState("test.json")
+        session.csv_path = "original.csv"
+        session.current_index = 10
+        assert session.is_resumable("different.csv") is False
+
+    def test_session_state_not_resumable_index_zero(self):
+        """Test is_resumable when index is 0."""
+        session = config.SessionState("test.json")
+        session.csv_path = "test.csv"
+        session.current_index = 0
+        assert session.is_resumable("test.csv") is False
+
+    def test_session_state_skipped_items(self):
+        """Test that skipped_items are saved and loaded correctly."""
+        with tempfile.TemporaryDirectory() as tmpdir:
+            session_file = os.path.join(tmpdir, "test_session.json")
+
+            session = config.SessionState(session_file)
+            session.csv_path = "test.csv"
+            session.skipped_items = [
+                {"title": "Movie1", "reason": "not_found"},
+                {"title": "Movie2", "reason": "ambiguous"},
+            ]
+            session.save()
+
+            session2 = config.SessionState(session_file)
+            session2.load()
+
+            assert len(session2.skipped_items) == 2
+            assert session2.skipped_items[0]["title"] == "Movie1"
+
+
+class TestRetryDecoratorEdgeCases:
+    """Additional edge case tests for retry_on_http_error decorator."""
+
+    def test_retry_decorator_exhausts_retries(self):
+        """Test that decorator raises after exhausting all retries."""
+        call_count = [0]
+
+        @config.retry_on_http_error(max_retries=3, initial_cooldown=0.01)
+        def test_func():
+            call_count[0] += 1
+            raise Exception("HTTP Error 503 Service Unavailable")
+
+        with pytest.raises(Exception, match="503"):
+            test_func()
+        assert call_count[0] == 3
+
+    def test_retry_decorator_various_http_errors(self):
+        """Test that decorator recognizes various HTTP error patterns."""
+        http_errors = [
+            "HTTP Error 500 Internal Server Error",
+            "503 Service Unavailable",
+            "429 Too Many Requests",
+            "HTTPError: Connection failed",
+        ]
+
+        for error_msg in http_errors:
+            call_count = [0]
+
+            @config.retry_on_http_error(max_retries=2, initial_cooldown=0.01)
+            def test_func():
+                call_count[0] += 1
+                if call_count[0] < 2:
+                    raise Exception(error_msg)
+                return "success"
+
+            result = test_func()
+            assert result == "success"
+            assert call_count[0] == 2, f"Failed for error: {error_msg}"
+
+    def test_retry_decorator_with_args(self):
+        """Test that decorator preserves function arguments."""
+        call_count = [0]
+
+        @config.retry_on_http_error(max_retries=2, initial_cooldown=0.01)
+        def test_func(a, b, c=None):
+            call_count[0] += 1
+            if call_count[0] < 2:
+                raise Exception("HTTP Error 500")
+            return f"{a}-{b}-{c}"
+
+        result = test_func("x", "y", c="z")
+        assert result == "x-y-z"
+
+
+class TestFileLockEdgeCases:
+    """Additional edge case tests for file_lock context manager."""
+
+    def test_file_lock_creates_lock_file(self):
+        """Test that file_lock creates a .lock file."""
+        with tempfile.TemporaryDirectory() as tmpdir:
+            lock_path = Path(tmpdir) / "test.json"
+
+            with config.file_lock(lock_path):
+                lock_file = lock_path.with_suffix(".lock")
+                assert lock_file.exists()
+
+    def test_file_lock_nested_directory(self):
+        """Test file_lock with non-existent parent directory."""
+        with tempfile.TemporaryDirectory() as tmpdir:
+            lock_path = Path(tmpdir) / "nested" / "dir" / "test.json"
+
+            with config.file_lock(lock_path):
+                # Should create parent directories
+                assert lock_path.parent.exists()
+
+
 if __name__ == "__main__":
     pytest.main([__file__, "-v"])

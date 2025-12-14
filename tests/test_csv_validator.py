@@ -529,3 +529,180 @@ class TestModuleConstants:
 
     def test_letterboxd_required_columns(self):
         assert "title" in LETTERBOXD_REQUIRED_COLUMNS
+
+
+class TestValidateCsvFormatEdgeCases:
+    """Additional edge case tests for validate_csv_format."""
+
+    def test_csv_with_bom(self):
+        """Test handling of UTF-8 BOM in CSV files."""
+        with tempfile.NamedTemporaryFile(mode="wb", suffix=".csv", delete=False) as f:
+            # Write UTF-8 BOM followed by content
+            f.write(b"\xef\xbb\xbftitle;year;score\n")
+            f.write(b"The Godfather;1972;10\n")
+            f.flush()
+            path = f.name
+        try:
+            result = validate_csv_format(path)
+            assert result.valid is True
+            assert "title" in result.detected_columns
+        finally:
+            Path(path).unlink()
+
+    def test_csv_with_extra_columns(self):
+        """Test CSV with additional columns beyond expected ones."""
+        with tempfile.NamedTemporaryFile(
+            mode="w", suffix=".csv", delete=False, encoding="utf-8"
+        ) as f:
+            f.write("title;year;score;extra_col1;extra_col2\n")
+            f.write("The Godfather;1972;10;value1;value2\n")
+            f.flush()
+            path = f.name
+        try:
+            result = validate_csv_format(path)
+            assert result.valid is True
+            assert "extra_col1" in result.detected_columns
+        finally:
+            Path(path).unlink()
+
+    def test_csv_with_quoted_fields(self):
+        """Test CSV with quoted fields containing delimiters."""
+        with tempfile.NamedTemporaryFile(
+            mode="w", suffix=".csv", delete=False, encoding="utf-8"
+        ) as f:
+            f.write("title;year;score\n")
+            f.write('"Movie; with semicolon";1972;10\n')
+            f.flush()
+            path = f.name
+        try:
+            result = validate_csv_format(path)
+            assert result.valid is True
+            assert result.row_count == 1
+        finally:
+            Path(path).unlink()
+
+    def test_csv_with_unicode_content(self):
+        """Test CSV with various Unicode characters."""
+        with tempfile.NamedTemporaryFile(
+            mode="w", suffix=".csv", delete=False, encoding="utf-8"
+        ) as f:
+            f.write("title;year;score\n")
+            f.write("日本語タイトル;2020;9\n")
+            f.write("Ελληνικός τίτλος;2021;8\n")
+            f.write("Título español ñ;2022;7\n")
+            f.flush()
+            path = f.name
+        try:
+            result = validate_csv_format(path)
+            assert result.valid is True
+            assert result.row_count == 3
+        finally:
+            Path(path).unlink()
+
+    def test_csv_path_as_pathlib(self):
+        """Test that Path objects work as input."""
+        with tempfile.NamedTemporaryFile(
+            mode="w", suffix=".csv", delete=False, encoding="utf-8"
+        ) as f:
+            f.write("title;year\n")
+            f.write("Test Movie;2020\n")
+            f.flush()
+            path = Path(f.name)
+        try:
+            result = validate_csv_format(path)  # Pass Path object
+            assert result.valid is True
+        finally:
+            path.unlink()
+
+    def test_csv_with_many_rows(self):
+        """Test CSV with many rows exceeds max_preview_rows."""
+        with tempfile.NamedTemporaryFile(
+            mode="w", suffix=".csv", delete=False, encoding="utf-8"
+        ) as f:
+            f.write("title;year;score\n")
+            for i in range(100):
+                f.write(f"Movie {i};2020;8\n")
+            f.flush()
+            path = f.name
+        try:
+            result = validate_csv_format(path, max_preview_rows=5)
+            assert result.valid is True
+            assert result.row_count == 100
+        finally:
+            Path(path).unlink()
+
+
+class TestValidateLetterboxdFormatEdgeCases:
+    """Additional edge case tests for validate_letterboxd_format."""
+
+    def test_letterboxd_with_decimal_rating(self):
+        """Test Letterboxd CSV with decimal ratings (valid range 0.5-10)."""
+        with tempfile.NamedTemporaryFile(
+            mode="w", suffix=".csv", delete=False, encoding="utf-8"
+        ) as f:
+            f.write("Title,Year,Rating10\n")
+            f.write("The Godfather,1972,9.5\n")
+            f.write("Pulp Fiction,1994,8.5\n")
+            f.flush()
+            path = f.name
+        try:
+            result = validate_letterboxd_format(path)
+            assert result.valid is True
+            assert len(result.warnings) == 0
+        finally:
+            Path(path).unlink()
+
+    def test_letterboxd_with_non_numeric_rating(self):
+        """Test Letterboxd CSV with non-numeric rating value."""
+        with tempfile.NamedTemporaryFile(
+            mode="w", suffix=".csv", delete=False, encoding="utf-8"
+        ) as f:
+            f.write("Title,Year,Rating10\n")
+            f.write("The Godfather,1972,excellent\n")
+            f.flush()
+            path = f.name
+        try:
+            result = validate_letterboxd_format(path)
+            assert any("invalid rating" in w.lower() for w in result.warnings)
+        finally:
+            Path(path).unlink()
+
+    def test_letterboxd_using_rating_column(self):
+        """Test Letterboxd CSV using 'Rating' instead of 'Rating10'."""
+        with tempfile.NamedTemporaryFile(
+            mode="w", suffix=".csv", delete=False, encoding="utf-8"
+        ) as f:
+            f.write("Title,Year,Rating\n")
+            f.write("The Godfather,1972,9\n")
+            f.flush()
+            path = f.name
+        try:
+            result = validate_letterboxd_format(path)
+            assert result.valid is True
+        finally:
+            Path(path).unlink()
+
+    def test_letterboxd_directory_instead_of_file(self):
+        """Test Letterboxd validation with directory path."""
+        with tempfile.TemporaryDirectory() as tmpdir:
+            result = validate_letterboxd_format(tmpdir)
+            assert result.valid is False
+            assert any("not a file" in e.lower() for e in result.errors)
+
+    def test_letterboxd_rating_at_boundary(self):
+        """Test Letterboxd ratings at valid boundaries (0.5 and 10)."""
+        with tempfile.NamedTemporaryFile(
+            mode="w", suffix=".csv", delete=False, encoding="utf-8"
+        ) as f:
+            f.write("Title,Year,Rating10\n")
+            f.write("Movie1,2020,0.5\n")  # Minimum valid
+            f.write("Movie2,2021,10\n")  # Maximum valid
+            f.flush()
+            path = f.name
+        try:
+            result = validate_letterboxd_format(path)
+            assert result.valid is True
+            # Should have no invalid rating warnings
+            assert not any("invalid rating" in w.lower() for w in result.warnings)
+        finally:
+            Path(path).unlink()
