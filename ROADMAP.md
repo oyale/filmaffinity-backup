@@ -71,18 +71,18 @@
 
 * [X] Export to JSON format (in addition to CSV)
 * [x] Export to Letterboxd format
-* [ ] Add `--filter` option (by year, rating, genre)
-* [ ] Add `--since` option for incremental backups
-* [ ] Support for TV series (not just movies)
-* [ ] Add movie poster URLs to export
+* [ ] [Add `--filter` option (by year, rating, genre)](https://github.com/oyale/filmaffinity-backup/issues/23)
+* [ ] [Add `--since` option for incremental backups](https://github.com/oyale/filmaffinity-backup/issues/24)
+* [ ] [Support for TV series (not just movies)](https://github.com/oyale/filmaffinity-backup/issues/25)
+* [ ] [Add movie poster URLs to export](https://github.com/oyale/filmaffinity-backup/issues/26)
 
 ### IMDb Uploader
 
-* [ ] Add Trakt.tv export support
-* [ ] Headless mode improvements (better CAPTCHA handling)
-* [ ] Add `--preview` to show what would be uploaded
-* [ ] Support for IMDb watchlist (not just ratings)
-* [ ] Add two-factor authentication support
+* [ ] [Add Trakt.tv export support](https://github.com/oyale/filmaffinity-backup/issues/27)
+* [ ] [Headless mode improvements (better CAPTCHA handling)](https://github.com/oyale/filmaffinity-backup/issues/28)
+* [ ] [Add `--preview` to show what would be uploaded](https://github.com/oyale/filmaffinity-backup/issues/29)
+* [ ] [Support for IMDb watchlist (not just ratings)](https://github.com/oyale/filmaffinity-backup/issues/30)
+* [ ] [Add two-factor authentication support](https://github.com/oyale/filmaffinity-backup/issues/31)
 
 ---
 
@@ -92,22 +92,22 @@
 
 ### CLI Improvements
 
-* [ ] Add shell completions (bash, zsh, fish)
-* [ ] Add interactive mode with TUI (using `textual`)
-* [ ] Add colored diff when showing rating changes
-* [ ] Add sound notification on completion
+* [ ] [Add shell completions (bash, zsh, fish)](https://github.com/oyale/filmaffinity-backup/issues/32)
+* [ ] [Add interactive mode with TUI (using `textual`)](https://github.com/oyale/filmaffinity-backup/issues/33)
+* [ ] [Add colored diff when showing rating changes](https://github.com/oyale/filmaffinity-backup/issues/34)
+* [ ] [Add sound notification on completion](https://github.com/oyale/filmaffinity-backup/issues/35)
 
 ### Configuration
 
-* [ ] Add `.env` file support for credentials
-* [ ] Add per-profile configuration
-* [ ] Add config migration tool
+* [ ] [Add `.env` file support for credentials](https://github.com/oyale/filmaffinity-backup/issues/36)
+* [ ] [Add per-profile configuration](https://github.com/oyale/filmaffinity-backup/issues/37)
+* [ ] [Add config migration tool](https://github.com/oyale/filmaffinity-backup/issues/38)
 
 ### Reporting
 
-* [ ] Generate HTML report of upload results
-* [ ] Add statistics dashboard (total movies, ratings distribution)
-* [ ] Export match confidence report
+* [ ] [Generate HTML report of upload results](https://github.com/oyale/filmaffinity-backup/issues/39)
+* [ ] [Add statistics dashboard (total movies, ratings distribution)](https://github.com/oyale/filmaffinity-backup/issues/40)
+* [ ] [Export match confidence report](https://github.com/oyale/filmaffinity-backup/issues/41)
 
 ---
 
@@ -117,22 +117,22 @@
 
 ### New Platforms
 
-* [ ] **Letterboxd** backup/import
-* [ ] **Trakt.tv** backup/import
-* [ ] **TMDb** (The Movie Database) integration
-* [ ] **JustWatch** watchlist sync
+* [ ] [**Letterboxd** backup/import](https://github.com/oyale/filmaffinity-backup/issues/42) (see also [#43](https://github.com/oyale/filmaffinity-backup/issues/43) for import)
+* [ ] [**Trakt.tv** backup/import](https://github.com/oyale/filmaffinity-backup/issues/44) (see also [#45](https://github.com/oyale/filmaffinity-backup/issues/45) for import)
+* [ ] [**TMDb** (The Movie Database) integration](https://github.com/oyale/filmaffinity-backup/issues/46)
+* [ ] [**JustWatch** watchlist sync](https://github.com/oyale/filmaffinity-backup/issues/47)
 
 ### Architecture
 
-* [ ] Plugin system for adding new platforms
-* [ ] API server mode (REST/GraphQL)
-* [ ] Web UI (optional frontend)
+* [ ] [Plugin system for adding new platforms](https://github.com/oyale/filmaffinity-backup/issues/48)
+* [ ] [API server mode (REST/GraphQL)](https://github.com/oyale/filmaffinity-backup/issues/49)
+* [ ] [Web UI (optional frontend)](https://github.com/oyale/filmaffinity-backup/issues/50)
 
 ### Advanced Features
 
-* [ ] Cross-platform sync (FA ↔ IMDb ↔ Letterboxd)
-* [ ] Scheduled automatic backups
-* [ ] Cloud storage integration (Google Drive, Dropbox)
+* [ ] [Cross-platform sync (FA ↔ IMDb ↔ Letterboxd)](https://github.com/oyale/filmaffinity-backup/issues/51)
+* [ ] [Scheduled automatic backups](https://github.com/oyale/filmaffinity-backup/issues/52)
+* [ ] [Cloud storage integration (Google Drive, Dropbox)](https://github.com/oyale/filmaffinity-backup/issues/53)
 
 ---
 
