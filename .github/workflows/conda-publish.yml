@@ -34,9 +34,14 @@ jobs:
           conda config --set channel_priority strict
           if [[ $GITHUB_REF == refs/tags/* ]]; then
             VERSION=${GITHUB_REF#refs/tags/v}
+            echo "Version detected from Git Tag: $VERSION"
           else
-            VERSION="0.0.0"
+            VERSION=$(grep -m1 'version = ' pyproject.toml | cut -d '"' -f2)
+            echo "No tag found. Fallback to pyproject.toml version: $VERSION"
           fi
+
+          # 3. Export for meta.yaml
+          export PKG_VERSION=$VERSION
 
           echo "Building Conda package version: $VERSION"
 
