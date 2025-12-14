@@ -3,12 +3,10 @@
 import csv
 from itertools import zip_longest
 from pathlib import Path
-from typing import TextIO, Union
+from typing import Any, TextIO, Union
 
 
-def export_to_letterboxd(
-    films: dict[str, list], output: Union[str, Path, TextIO]
-) -> None:
+def export_to_letterboxd(films: dict[str, list[Any]], output: Union[str, Path, TextIO]) -> None:
     """Export films dict to Letterboxd-compatible CSV.
 
     Letterboxd import format: https://letterboxd.com/about/importing-data/
@@ -17,8 +15,13 @@ def export_to_letterboxd(
         films: Dict with keys 'title', 'year', 'user score', 'original title'
         output: File path or file-like object
     """
-    should_close = isinstance(output, (str, Path))
-    fh = open(output, "w", newline="", encoding="utf-8") if should_close else output
+    fh: TextIO
+    if isinstance(output, (str, Path)):
+        fh = open(output, "w", newline="", encoding="utf-8")
+        should_close = True
+    else:
+        fh = output
+        should_close = False
 
     try:
         writer = csv.writer(fh)

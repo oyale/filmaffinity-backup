@@ -8,7 +8,6 @@ from __future__ import annotations
 
 from typing import Any
 
-
 # =============================================================================
 # Type Aliases
 # =============================================================================
@@ -24,22 +23,22 @@ Stats = dict[str, Any]
 # =============================================================================
 
 DEFAULT_CONFIG: dict[str, Any] = {
-    'headless': False,
-    'auto_login': False,
-    'auto_rate': False,
-    'confirm_threshold': 0.75,
-    'no_confirm': False,
-    'no_overwrite': False,
-    'unattended': False,
-    'skipped_dir': 'skipped',
-    'session_file': '.upload_imdb_session.json',
-    'debug': False,
-    'verbose': False,
-    'no_beep': False,
+    "headless": False,
+    "auto_login": False,
+    "auto_rate": False,
+    "confirm_threshold": 0.75,
+    "no_confirm": False,
+    "no_overwrite": False,
+    "unattended": False,
+    "skipped_dir": "skipped",
+    "session_file": ".upload_imdb_session.json",
+    "debug": False,
+    "verbose": False,
+    "no_beep": False,
     # Rate limiting settings
-    'rate_limit_initial_cooldown': 5,
-    'rate_limit_max_cooldown': 60,
-    'max_retries': 3,
+    "rate_limit_initial_cooldown": 5,
+    "rate_limit_max_cooldown": 60,
+    "max_retries": 3,
 }
 
 
@@ -66,30 +65,30 @@ MAX_RETRIES = 3
 # Skip Reasons
 # =============================================================================
 
-SKIP_AMBIGUOUS = 'ambiguous_match'
-SKIP_NOT_FOUND = 'not_found'
-SKIP_ALREADY_RATED = 'already_rated'
-SKIP_SAME_RATING = 'same_rating'
-SKIP_AUTO_RATE_FAILED = 'auto_rate_failed'
-SKIP_USER_CHOICE = 'user_choice'
+SKIP_AMBIGUOUS = "ambiguous_match"
+SKIP_NOT_FOUND = "not_found"
+SKIP_ALREADY_RATED = "already_rated"
+SKIP_SAME_RATING = "same_rating"
+SKIP_AUTO_RATE_FAILED = "auto_rate_failed"
+SKIP_USER_CHOICE = "user_choice"
 
 # Mapping of skip reasons to CSV filenames
 SKIP_REASON_TO_FILE = {
-    SKIP_AMBIGUOUS: 'skipped_ambiguous.csv',
-    SKIP_NOT_FOUND: 'skipped_not_found.csv',
-    SKIP_ALREADY_RATED: 'skipped_already_rated.csv',
-    SKIP_SAME_RATING: 'skipped_same_rating.csv',
-    SKIP_AUTO_RATE_FAILED: 'skipped_auto_rate_failed.csv',
-    SKIP_USER_CHOICE: 'skipped_user_choice.csv',
+    SKIP_AMBIGUOUS: "skipped_ambiguous.csv",
+    SKIP_NOT_FOUND: "skipped_not_found.csv",
+    SKIP_ALREADY_RATED: "skipped_already_rated.csv",
+    SKIP_SAME_RATING: "skipped_same_rating.csv",
+    SKIP_AUTO_RATE_FAILED: "skipped_auto_rate_failed.csv",
+    SKIP_USER_CHOICE: "skipped_user_choice.csv",
 }
 
 # Mapping of retry categories to CSV filenames
 RETRY_CATEGORY_TO_FILE = {
-    'ambiguous': 'skipped_ambiguous.csv',
-    'not_found': 'skipped_not_found.csv',
-    'already_rated': 'skipped_already_rated.csv',
-    'auto_rate_failed': 'skipped_auto_rate_failed.csv',
-    'user_skipped': 'skipped_user_choice.csv',
+    "ambiguous": "skipped_ambiguous.csv",
+    "not_found": "skipped_not_found.csv",
+    "already_rated": "skipped_already_rated.csv",
+    "auto_rate_failed": "skipped_auto_rate_failed.csv",
+    "user_skipped": "skipped_user_choice.csv",
 }
 
 
@@ -97,8 +96,8 @@ RETRY_CATEGORY_TO_FILE = {
 # CSV Field Names
 # =============================================================================
 
-CSV_FIELDNAMES = ['title', 'year', 'directors', 'user score', 'original title']
-CSV_FIELDNAMES_WITH_REASON = CSV_FIELDNAMES + ['skip_reason']
+CSV_FIELDNAMES = ["title", "year", "directors", "user score", "original title"]
+CSV_FIELDNAMES_WITH_REASON = CSV_FIELDNAMES + ["skip_reason"]
 
 
 # =============================================================================
@@ -138,7 +137,9 @@ SELECTOR_PASSWORD_INPUT_OPTIONS = [
     "input[type='password']",
     "input#password",
 ]
-SELECTOR_CONTINUE_BUTTON = "input#continue, input[type='submit'], button[type='submit'], .auth-button"
+SELECTOR_CONTINUE_BUTTON = (
+    "input#continue, input[type='submit'], button[type='submit'], .auth-button"
+)
 SELECTOR_USER_MENU = (
     ".imdb-header__account-toggle, .nav__user-menu, [data-testid='nav-link-logged-in'], "
     ".navbar__user, .ipc-button[aria-label*='Account']"
@@ -166,7 +167,7 @@ SELECTOR_CAPTCHA_INDICATORS = [
 
 # Search results selectors
 SELECTOR_SEARCH_RESULTS = [
-    'table.findList tr .result_text a',
-    '.findList tr .result_text a',
-    '.findSection .findResult .result_text a',
+    "table.findList tr .result_text a",
+    ".findList tr .result_text a",
+    ".findSection .findResult .result_text a",
 ]

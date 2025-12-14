@@ -1,0 +1,18 @@
+codecov:
+  require_ci_to_pass: false
+
+coverage:
+  status:
+    project:
+      default:
+        target: 40%  # minimum coverage threshold
+        threshold: 1%  # allow 1% coverage decrease
+    patch:
+      default:
+        target: 80%  # require 80% coverage for changed lines
+        threshold: 2%  # allow 2% decrease for changed lines
+
+comment:
+  layout: "reach,diff,flags,tree"
+  behavior: default
+  require_changes: false

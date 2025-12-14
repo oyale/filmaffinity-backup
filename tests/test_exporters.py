@@ -11,8 +11,6 @@ import sys
 import tempfile
 from pathlib import Path
 
-import pytest
-
 # Add project root to path
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
@@ -306,8 +304,10 @@ class TestExporterImports:
 
     def test_import_from_module(self):
         from filmaffinity.exporters import export_to_letterboxd
+
         assert callable(export_to_letterboxd)
 
     def test_import_from_package(self):
         from filmaffinity import export_to_letterboxd
+
         assert callable(export_to_letterboxd)

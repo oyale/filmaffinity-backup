@@ -3,24 +3,27 @@ FilmAffinity Backup CLI
 
 Command-line interface for backing up FilmAffinity data to CSV files.
 """
-from importlib.metadata import version as get_version, PackageNotFoundError
-from pathlib import Path
+
 import shutil
-from typing import Optional
+from importlib.metadata import PackageNotFoundError
+from importlib.metadata import version as get_version
+from pathlib import Path
+from typing import Any
 
 import click
 import pandas as pd
+import typer
 from rich import print
 from rich.panel import Panel
-import typer
 
 from filmaffinity import scraper
 from filmaffinity.scraper import (
-    ScraperError,
     NetworkError,
-    UserNotFoundError,
     RateLimitError,
+    ScraperError,
+    UserNotFoundError,
 )
+
 from .exporters import export_to_letterboxd
 
 
@@ -58,75 +61,80 @@ app = typer.Typer(
 @app.callback(invoke_without_command=True)
 def app_callback(
     version: bool = typer.Option(
-        False, "--version", "-V",
+        False,
+        "--version",
+        "-V",
         callback=version_callback,
         is_eager=True,
-        help="Show the application version and exit."
+        help="Show the application version and exit.",
     ),
 ) -> None:
     """FilmAffinity backup tool."""
     pass
 
+
 # Default data directory (relative to this file's package root)
-DEFAULT_DATA_DIR = Path(__file__).parent.parent / 'data'
+DEFAULT_DATA_DIR = Path(__file__).parent.parent / "data"
 
 
 def _handle_scraper_error(error: ScraperError) -> None:
     """Display a user-friendly error message and exit."""
     if isinstance(error, UserNotFoundError):
-        print(Panel(
-            f"[red bold]User Not Found[/red bold]\n\n"
-            f"The user ID [yellow]'{error.user_id}'[/yellow] does not exist on FilmAffinity.\n\n"
-            f"[dim]To find your user ID:[/dim]\n"
-            f"  1. Go to your FilmAffinity profile\n"
-            f"  2. Click on 'My ratings' (Mis votaciones)\n"
-            f"  3. Copy the [cyan]user_id[/cyan] from the URL:\n"
-            f"     [dim]https://www.filmaffinity.com/en/userratings.php?user_id=[/dim][green]YOUR_ID[/green]",
-            title="❌ Error",
-            border_style="red"
-        ))
+        print(
+            Panel(
+                f"[red bold]User Not Found[/red bold]\n\n"
+                f"The user ID [yellow]'{error.user_id}'[/yellow] does not exist on FilmAffinity.\n\n"
+                f"[dim]To find your user ID:[/dim]\n"
+                f"  1. Go to your FilmAffinity profile\n"
+                f"  2. Click on 'My ratings' (Mis votaciones)\n"
+                f"  3. Copy the [cyan]user_id[/cyan] from the URL:\n"
+                f"     [dim]https://www.filmaffinity.com/en/userratings.php?user_id=[/dim][green]YOUR_ID[/green]",
+                title="❌ Error",
+                border_style="red",
+            )
+        )
     elif isinstance(error, RateLimitError):
-        print(Panel(
-            f"[red bold]Rate Limited[/red bold]\n\n"
-            f"FilmAffinity is temporarily blocking requests from your IP.\n\n"
-            f"[dim]What to do:[/dim]\n"
-            f"  • Wait [cyan]10-15 minutes[/cyan] before trying again\n"
-            f"  • Use [cyan]--resume[/cyan] flag to continue where you left off\n"
-            f"  • Consider using a VPN if the problem persists",
-            title="⏳ Rate Limited",
-            border_style="yellow"
-        ))
+        print(
+            Panel(
+                "[red bold]Rate Limited[/red bold]\n\n"
+                "FilmAffinity is temporarily blocking requests from your IP.\n\n"
+                "[dim]What to do:[/dim]\n"
+                "  • Wait [cyan]10-15 minutes[/cyan] before trying again\n"
+                "  • Use [cyan]--resume[/cyan] flag to continue where you left off\n"
+                "  • Consider using a VPN if the problem persists",
+                title="⏳ Rate Limited",
+                border_style="yellow",
+            )
+        )
     elif isinstance(error, NetworkError):
-        print(Panel(
-            f"[red bold]Network Error[/red bold]\n\n"
-            f"{error}\n\n"
-            f"[dim]Troubleshooting tips:[/dim]\n"
-            f"  • Check your internet connection\n"
-            f"  • Try again in a few minutes\n"
-            f"  • Use [cyan]--resume[/cyan] flag to continue where you left off",
-            title="🌐 Connection Problem",
-            border_style="red"
-        ))
+        print(
+            Panel(
+                f"[red bold]Network Error[/red bold]\n\n"
+                f"{error}\n\n"
+                f"[dim]Troubleshooting tips:[/dim]\n"
+                f"  • Check your internet connection\n"
+                f"  • Try again in a few minutes\n"
+                f"  • Use [cyan]--resume[/cyan] flag to continue where you left off",
+                title="🌐 Connection Problem",
+                border_style="red",
+            )
+        )
     else:
-        print(Panel(
-            f"[red bold]Error[/red bold]\n\n{error}",
-            title="❌ Error",
-            border_style="red"
-        ))
+        print(Panel(f"[red bold]Error[/red bold]\n\n{error}", title="❌ Error", border_style="red"))
     raise typer.Exit(1)
 
 
-def load_existing_data(user_dir: Path) -> dict:
+def load_existing_data(user_dir: Path) -> dict[str, dict[str, list[Any]]]:
     """Load existing CSV files from user directory for resume mode."""
-    data = {}
+    data: dict[str, dict[str, list[Any]]] = {}
     if not user_dir.exists():
         return data
 
-    for csv_file in user_dir.glob('*.csv'):
+    for csv_file in user_dir.glob("*.csv"):
         name = csv_file.stem
         try:
-            df = pd.read_csv(csv_file, sep=';')
-            data[name] = df.to_dict(orient='list')
+            df = pd.read_csv(csv_file, sep=";")
+            data[name] = dict(df.to_dict(orient="list"))  # type: ignore[arg-type]
             qprint(f"  [dim]Loaded existing: {name} ({len(df)} items)[/dim]")
         except Exception as e:
             qprint(f"  [yellow]Warning: Could not load {csv_file}: {e}[/yellow]")
@@ -138,30 +146,26 @@ def load_existing_data(user_dir: Path) -> dict:
 def backup(
     user_id: str = typer.Argument(..., help="FilmAffinity user ID"),
     skip_lists: bool = typer.Option(
-        False, "--skip-lists",
-        help="Skip downloading user lists, only get watched films"
+        False, "--skip-lists", help="Skip downloading user lists, only get watched films"
     ),
     resume: bool = typer.Option(
-        False, "--resume",
-        help="Resume interrupted session, skip already downloaded lists"
+        False, "--resume", help="Resume interrupted session, skip already downloaded lists"
     ),
     lang: str = typer.Option(
-        "en", "--lang",
-        help="Language for FilmAffinity (es/en). Default: 'en' for better IMDb matching"
+        "en",
+        "--lang",
+        help="Language for FilmAffinity (es/en). Default: 'en' for better IMDb matching",
     ),
     data_dir: Path = typer.Option(
-        DEFAULT_DATA_DIR, "--data-dir",
-        help="Directory to save CSV files"
+        DEFAULT_DATA_DIR, "--data-dir", help="Directory to save CSV files"
     ),
     export_format: str = typer.Option(
-        "csv", "--format",
+        "csv",
+        "--format",
         help="Export format: 'csv' (default, semicolon-delimited) or 'letterboxd' (Letterboxd-compatible CSV)",
         click_type=click.Choice(["csv", "letterboxd"]),
     ),
-    quiet: bool = typer.Option(
-        False, "--quiet", "-q",
-        help="Minimal output, only show errors"
-    ),
+    quiet: bool = typer.Option(False, "--quiet", "-q", help="Minimal output, only show errors"),
 ):
     """
     Backup FilmAffinity data (watched movies and lists) to CSV files.
@@ -172,16 +176,18 @@ def backup(
     global _quiet_mode
     _quiet_mode = quiet
 
-    data = {}
+    data: dict[str, dict[str, list[Any]]] = {}
     user_dir = data_dir / user_id
 
     # Validate language
-    if lang not in ('es', 'en'):
+    if lang not in ("es", "en"):
         print(f"[red]Error: Invalid language '{lang}'. Use 'es' or 'en'.[/red]")
         raise typer.Exit(1)
 
-    if lang == 'es':
-        qprint("[yellow]Using Spanish version of FilmAffinity. Consider using --lang en for better IMDb matching.[/yellow]")
+    if lang == "es":
+        qprint(
+            "[yellow]Using Spanish version of FilmAffinity. Consider using --lang en for better IMDb matching.[/yellow]"
+        )
 
     # Load existing data if resuming
     existing_data = {}
@@ -212,16 +218,20 @@ def backup(
                 "Make sure to mark your lists as :earth_americas: [b u]public[/b u] to "
                 "be able to backup them."
             )
-            inp = input("   Do you want to continue with watched movies and erase previous list data (if any)? [y/n]")
-            if inp != 'y':
+            inp = input(
+                "   Do you want to continue with watched movies and erase previous list data (if any)? [y/n]"
+            )
+            if inp != "y":
                 raise typer.Exit(0)
 
     # Process each list
     for name, url in lists.items():
-        list_key = f'list - {name}'
+        list_key = f"list - {name}"
 
         if resume and list_key in existing_data:
-            qprint(f"[dim]Skipping list (already downloaded): [turquoise4]{name}[/turquoise4][/dim]")
+            qprint(
+                f"[dim]Skipping list (already downloaded): [turquoise4]{name}[/turquoise4][/dim]"
+            )
             data[list_key] = existing_data[list_key]
             continue
 
@@ -233,13 +243,13 @@ def backup(
             _handle_scraper_error(e)
 
     # Download watched movies
-    if resume and 'watched' in existing_data:
+    if resume and "watched" in existing_data:
         qprint("[dim]Skipping watched movies (already downloaded)[/dim]")
-        data['watched'] = existing_data['watched']
+        data["watched"] = existing_data["watched"]
     else:
         qprint("Parsing [green bold]watched[/green bold] movies")
         try:
-            data['watched'] = scraper.get_watched_movies(user_id, lang=lang)
+            data["watched"] = scraper.get_watched_movies(user_id, lang=lang)
         except ScraperError as e:
             _handle_scraper_error(e)
 
@@ -251,18 +261,18 @@ def backup(
         user_dir.mkdir(parents=True)
 
     # Save data to files
-    qprint(f'Saving files to [bold]{user_dir}[/bold]')
+    qprint(f"Saving files to [bold]{user_dir}[/bold]")
     for k, v in data.items():
-        csv_path = user_dir / f'{k}.csv'
+        csv_path = user_dir / f"{k}.csv"
 
         # Always save the standard CSV (semicolon-delimited)
         df = pd.DataFrame.from_dict(v)
-        df.to_csv(csv_path, sep=';', index=False)
+        df.to_csv(csv_path, sep=";", index=False)
         qprint(f"  [green]✓ Saved: {csv_path}[/green]")
 
         # Additionally save Letterboxd format if requested
         if export_format == "letterboxd":
-            letterboxd_path = user_dir / f'{k}_letterboxd.csv'
+            letterboxd_path = user_dir / f"{k}_letterboxd.csv"
             export_to_letterboxd(v, letterboxd_path)
             qprint(f"  [green]✓ Saved Letterboxd CSV: {letterboxd_path}[/green]")
 
