@@ -43,17 +43,17 @@
 
 ### Code Quality
 
-* [ ] Add pre-commit hooks (ruff, black, mypy)
-* [ ] Add `py.typed` marker for type checking
-* [ ] Increase test coverage from 23% to 50%+
-* [ ] Add integration tests (marked to skip by default)
+* [X] Add pre-commit hooks (ruff, black, mypy)
+* [X] Add `py.typed` marker for type checking
+* [X] Increase test coverage from 23% to 40%+
+* [X] Add integration tests (marked to skip by default)
 
 ### CI/CD
 
-* [ ] Add CodeQL security scanning
-* [ ] Add Dependabot for dependency updates
+* [X] Add CodeQL security scanning
+* [X] Add Dependabot for dependency updates
 * [ ] Add automated PyPI publishing on release
-* [ ] Add coverage reporting (Codecov/Coveralls)
+* [X] Add coverage reporting (Codecov/Coveralls)
 
 ### Packaging
 
