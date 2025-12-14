@@ -43,6 +43,7 @@ jobs:
 
           export PKG_VERSION=$VERSION
           echo "🚀 Building Conda package version: $VERSION"
+          sed -i "s/^  version: .*/  version: $VERSION/" recipe/meta.yaml || sed -i "s/^  version: .*/  version: $VERSION/" meta.yaml
 
           conda build . --output-folder dist -c conda-forge
 
