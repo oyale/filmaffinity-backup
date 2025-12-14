@@ -2,6 +2,8 @@
 
 [![Tests](https://github.com/oyale/filmaffinity-backup/actions/workflows/main.yml/badge.svg)](https://github.com/oyale/filmaffinity-backup/actions/workflows/main.yml)
 [![codecov](https://codecov.io/gh/oyale/filmaffinity-backup/branch/main/graph/badge.svg)](https://codecov.io/gh/oyale/filmaffinity-backup)
+[![PyPI](https://img.shields.io/pypi/v/filmaffinity-backup.svg)](https://pypi.org/project/filmaffinity-backup/)
+[![Conda](https://img.shields.io/conda/v/oyale/filmaffinity-backup.svg)](https://anaconda.org/oyale/filmaffinity-backup/)
 [![Python 3.9+](https://img.shields.io/badge/python-3.9+-blue.svg)](https://www.python.org/downloads/)
 [![License: AGPL v3](https://img.shields.io/badge/License-AGPL%20v3-blue.svg)](https://www.gnu.org/licenses/agpl-3.0)
 
@@ -47,6 +49,22 @@ Backup your [FilmAffinity](https://www.filmaffinity.com/) ratings and lists to C
 ---
 
 ## Installation
+
+### From PyPI
+
+```bash
+# Basic installation (FilmAffinity backup only)
+pip install filmaffinity-backup
+
+# Full installation (includes IMDb uploader and optional extras)
+pip install "filmaffinity-backup[all]"
+```
+
+### From Conda
+
+```bash
+conda install -c oyale filmaffinity-backup
+```
 
 ### From GitHub
 

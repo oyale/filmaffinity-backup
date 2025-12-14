@@ -57,8 +57,8 @@
 
 ### Packaging
 
-* [ ] Publish to PyPI (`pip install filmaffinity-backup`)
-* [ ] Add conda-forge recipe
+* [X] Publish to PyPI (`pip install filmaffinity-backup`)
+* [X] Add conda-forge recipe
 * [ ] Create Docker image
 
 ---
