@@ -6,6 +6,7 @@ Tests for the FilmAffinity export functions.
 
 import csv
 import io
+import json
 import os
 import sys
 import tempfile
@@ -14,7 +15,7 @@ from pathlib import Path
 # Add project root to path
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-from filmaffinity.exporters import export_to_letterboxd
+from filmaffinity.exporters import export_to_json, export_to_letterboxd
 
 
 class TestExportToLetterboxd:
@@ -299,15 +300,173 @@ class TestExportToLetterboxd:
         assert rows[2]["Title"] == "Ελληνικά"
 
 
+class TestExportToJson:
+    """Test the export_to_json function."""
+
+    def test_basic_export(self):
+        """Test basic JSON export with all fields populated."""
+        films = {
+            "title": ["The Matrix", "Inception"],
+            "original title": ["The Matrix", "Inception"],
+            "year": ["1999", "2010"],
+            "user score": ["10", "9"],
+        }
+
+        output = io.StringIO()
+        export_to_json(films, output)
+        output.seek(0)
+
+        data = json.loads(output.getvalue())
+
+        assert isinstance(data, list)
+        assert len(data) == 2
+
+        assert data[0]["title"] == "The Matrix"
+        assert data[0]["original title"] == "The Matrix"
+        assert data[0]["year"] == "1999"
+        assert data[0]["user score"] == "10"
+
+        assert data[1]["title"] == "Inception"
+        assert data[1]["original title"] == "Inception"
+        assert data[1]["year"] == "2010"
+        assert data[1]["user score"] == "9"
+
+    def test_empty_films_dict(self):
+        """Test JSON export with empty films dictionary."""
+        films = {}
+
+        output = io.StringIO()
+        export_to_json(films, output)
+        output.seek(0)
+
+        data = json.loads(output.getvalue())
+
+        assert isinstance(data, list)
+        assert len(data) == 0
+
+    def test_unequal_list_lengths(self):
+        """Test JSON export when lists have different lengths."""
+        films = {
+            "title": ["Movie 1", "Movie 2", "Movie 3"],
+            "year": ["2000", "2001"],  # Shorter list
+            "rating": ["8"],  # Even shorter list
+        }
+
+        output = io.StringIO()
+        export_to_json(films, output)
+        output.seek(0)
+
+        data = json.loads(output.getvalue())
+
+        assert len(data) == 3  # Should use longest list length
+
+        assert data[0]["title"] == "Movie 1"
+        assert data[0]["year"] == "2000"
+        assert data[0]["rating"] == "8"
+
+        assert data[1]["title"] == "Movie 2"
+        assert data[1]["year"] == "2001"
+        assert data[1]["rating"] == ""  # Empty string for missing values
+
+        assert data[2]["title"] == "Movie 3"
+        assert data[2]["year"] == ""  # Empty string for missing values
+        assert data[2]["rating"] == ""  # Empty string for missing values
+
+    def test_unicode_characters(self):
+        """Test JSON export with Unicode characters."""
+        films = {
+            "title": ["Ελληνικά", "Español", "Français"],
+            "year": ["2020", "2021", "2022"],
+        }
+
+        output = io.StringIO()
+        export_to_json(films, output)
+        output.seek(0)
+
+        data = json.loads(output.getvalue())
+
+        assert len(data) == 3
+        assert data[0]["title"] == "Ελληνικά"
+        assert data[1]["title"] == "Español"
+        assert data[2]["title"] == "Français"
+
+    def test_export_to_file_path(self):
+        """Test JSON export to file path."""
+        films = {
+            "title": ["Test Movie"],
+            "year": ["2023"],
+        }
+
+        with tempfile.NamedTemporaryFile(mode="w+", suffix=".json", delete=False) as tmp:
+            tmp_path = Path(tmp.name)
+
+        try:
+            export_to_json(films, tmp_path)
+
+            with open(tmp_path, encoding="utf-8") as f:
+                data = json.load(f)
+
+            assert len(data) == 1
+            assert data[0]["title"] == "Test Movie"
+            assert data[0]["year"] == "2023"
+        finally:
+            tmp_path.unlink(missing_ok=True)
+
+    def test_export_to_pathlib_path(self):
+        """Test JSON export to pathlib.Path object."""
+        films = {
+            "title": ["Test Movie"],
+            "year": ["2023"],
+        }
+
+        with tempfile.NamedTemporaryFile(mode="w+", suffix=".json", delete=False) as tmp:
+            tmp_path = Path(tmp.name)
+
+        try:
+            export_to_json(films, tmp_path)
+
+            with open(tmp_path, encoding="utf-8") as f:
+                data = json.load(f)
+
+            assert len(data) == 1
+            assert data[0]["title"] == "Test Movie"
+            assert data[0]["year"] == "2023"
+        finally:
+            tmp_path.unlink(missing_ok=True)
+
+    def test_json_formatting(self):
+        """Test that JSON output is properly formatted with indentation."""
+        films = {
+            "title": ["Test"],
+            "year": ["2023"],
+        }
+
+        output = io.StringIO()
+        export_to_json(films, output)
+        output.seek(0)
+
+        json_str = output.getvalue()
+
+        # Should have proper indentation (2 spaces)
+        assert '"title": "Test"' in json_str
+        assert '"year": "2023"' in json_str
+
+        # Should be valid JSON
+        data = json.loads(json_str)
+        assert len(data) == 1
+
+
 class TestExporterImports:
     """Test that exporter module can be imported."""
 
     def test_import_from_module(self):
-        from filmaffinity.exporters import export_to_letterboxd
+        from filmaffinity.exporters import export_to_json, export_to_letterboxd
 
         assert callable(export_to_letterboxd)
+        assert callable(export_to_json)
 
     def test_import_from_package(self):
-        from filmaffinity import export_to_letterboxd
+        from filmaffinity import export_to_json, export_to_letterboxd
 
         assert callable(export_to_letterboxd)
+        assert callable(export_to_json)
