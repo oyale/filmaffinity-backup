@@ -47,4 +47,4 @@ jobs:
 
           conda build . --output-folder dist -c conda-forge
 
-          anaconda upload --label main dist/noarch/*.tar.bz2
+          anaconda upload --label main dist/noarch/*.conda

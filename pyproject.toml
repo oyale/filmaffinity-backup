@@ -7,7 +7,7 @@ name = "filmaffinity-backup"
 version = "1.2.0"
 description = "Backup FilmAffinity data to CSV and upload ratings to IMDb"
 readme = "README.md"
-license = {text = "AGPL-3.0-or-later"}
+license = "AGPL-3.0-or-later"
 authors = [
     {name = "Ignacio Heredia"},
     {name = "Pelayo García"}
