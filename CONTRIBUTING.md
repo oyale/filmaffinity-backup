@@ -27,14 +27,52 @@ cd filmaffinity-backup
 python -m venv venv
 source venv/bin/activate  # On Windows: venv\Scripts\activate
 
-# Install in development mode
+# Install in development mode with dev dependencies
 pip install -e ".[dev]"
+
+# Install pre-commit hooks (recommended)
+pre-commit install
 ```
 
-### Running Tests
+### Development Tools
+
+This project uses modern Python development tools:
+
+| Tool | Purpose | Runs On |
+|------|---------|---------|
+| **[Ruff](https://docs.astral.sh/ruff/)** | Linting + formatting | Pre-commit |
+| **[Mypy](https://mypy.readthedocs.io/)** | Static type checking | Pre-commit |
+| **[Pytest](https://pytest.org/)** | Testing | Manual / CI |
+
+#### Pre-commit Hooks
+
+Pre-commit hooks run automatically before each commit to ensure code quality:
 
 ```bash
+# Run all hooks manually
+pre-commit run --all-files
+
+# Run on staged files only (what happens on commit)
+pre-commit run
+```
+
+The hooks will:
+- Fix trailing whitespace and ensure files end with newline
+- Sort imports and fix linting issues (auto-fix where possible)
+- Format code consistently
+- Run type checking
+
+#### Running Tests
+
+```bash
+# Run all tests
 pytest tests/
+
+# Run with coverage
+pytest tests/ --cov=filmaffinity --cov=imdb_uploader
+
+# Run specific test file
+pytest tests/test_scraper.py -v
 ```
 
 ## How to Contribute
@@ -62,8 +100,17 @@ Have an idea? Open an issue and describe:
 2. Create a branch (`git checkout -b feature/my-feature` or `fix/my-fix`)
 3. Make your changes
 4. Run tests (`pytest tests/`)
-5. Commit with a clear message
+5. Pre-commit hooks will run automatically on commit
 6. Push and open a Pull Request
+
+**Note:** If pre-commit makes automatic fixes, you may need to `git add` the changes and commit again.
+
+## Code Style
+
+- **Formatting**: Handled automatically by Ruff
+- **Imports**: Sorted automatically by Ruff (isort rules)
+- **Type hints**: Encouraged but not required for all code
+- **Docstrings**: Use Google-style docstrings for public functions
 
 ## Project Structure
 
@@ -76,6 +123,7 @@ filmaffinity-backup/
 ├── imdb_uploader/      # IMDb upload functionality
 │   ├── uploader.py     # Main upload logic
 │   ├── config.py       # Configuration & session management
+│   ├── constants.py    # Constants and type definitions
 │   └── prompts.py      # User interaction prompts
 └── tests/              # Test files
 ```
