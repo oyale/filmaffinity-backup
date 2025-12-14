@@ -97,7 +97,17 @@ pip install -r requirements.txt
 
 A Dockerfile is provided for containerized usage.
 
-### Build the Image
+### Pull from GitHub Container Registry
+
+Pre-built images are available on GitHub Container Registry:
+
+```bash
+docker pull ghcr.io/oyale/filmaffinity-backup:latest
+```
+
+### Build the Image Locally
+
+If you prefer to build the image yourself:
 
 ```bash
 docker build -t filmaffinity-backup .
@@ -117,11 +127,11 @@ Run the container using the `backup` or `upload` commands:
 ```bash
 # Backup FilmAffinity data
 # Usage: docker run ... [image_name] backup [arguments]
-docker run -it --rm -v "$(pwd)/data":/app/data filmaffinity-backup backup $YOUR_USER_ID
+docker run -it --rm -v "$(pwd)/data":/app/data ghcr.io/oyale/filmaffinity-backup backup $YOUR_USER_ID
 
 # Upload to IMDb
 # Usage: docker run ... [image_name] upload [arguments]
-docker run -it --rm -v "$(pwd)/data":/app/data filmaffinity-backup upload --csv /app/data/$YOUR_USER_ID/watched.csv --auto-rate
+docker run -it --rm -v "$(pwd)/data":/app/data ghcr.io/oyale/filmaffinity-backup upload --csv /app/data/$YOUR_USER_ID/watched.csv --auto-rate
 
 ```
 
