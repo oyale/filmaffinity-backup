@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "filmaffinity-backup"
-version = "1.1.0"
+version = "1.2.0"
 description = "Backup FilmAffinity data to CSV and upload ratings to IMDb"
 readme = "README.md"
 license = {text = "AGPL-3.0-or-later"}
