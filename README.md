@@ -149,7 +149,7 @@ Your data will be saved to the `./data/{user_id}/` folder.
 | `--resume` | Resume an interrupted session, skip already downloaded lists/watched |
 | `--lang` | Language for FilmAffinity (`es` or `en`). Default: `en` |
 | `--data-dir` | Directory to save CSV files (default: `./data`) |
-| `--format` | Export format: `csv` (default) or `letterboxd` |
+| `--format` | Export format: `csv` (default), `letterboxd`, or `json` |
 
 ### Letterboxd Export
 
@@ -167,6 +167,31 @@ The Letterboxd CSV includes:
 - **Year** - Release year
 - **Rating10** - Your rating on 1-10 scale
 - **WatchedDate** - Left empty (FilmAffinity doesn't track this)
+
+### JSON Export
+
+Export your FilmAffinity data to structured JSON format:
+
+```bash
+# Backup with JSON export
+fa-backup YOUR_USER_ID --format json
+```
+
+This creates `*.json` files with structured data containing all film information as an array of objects. Each film object includes all available metadata (title, year, rating, director, etc.).
+
+Example JSON structure:
+
+```json
+[
+  {
+    "title": "The Shawshank Redemption",
+    "original_title": "The Shawshank Redemption",
+    "year": "1994",
+    "score": "9.3",
+    "director": "Frank Darabont"
+  }
+]
+```
 
 ### Language Option (`--lang`)
 

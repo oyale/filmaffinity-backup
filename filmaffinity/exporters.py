@@ -1,6 +1,7 @@
 """Export FilmAffinity data to various formats."""
 
 import csv
+import json
 from itertools import zip_longest
 from pathlib import Path
 from typing import Any, TextIO, Union
@@ -41,6 +42,41 @@ def export_to_letterboxd(films: dict[str, list[Any]], output: Union[str, Path, T
             rating = str(score).strip() if score else ""
 
             writer.writerow([title, year, rating, ""])
+    finally:
+        if should_close:
+            fh.close()
+
+
+def export_to_json(films: dict[str, list[Any]], output: Union[str, Path, TextIO]) -> None:
+    """Export films dict to JSON format.
+
+    Args:
+        films: Dict with film data where keys are column names and values are lists
+        output: File path or file-like object
+    """
+    fh: TextIO
+    if isinstance(output, (str, Path)):
+        fh = open(output, "w", encoding="utf-8")
+        should_close = True
+    else:
+        fh = output
+        should_close = False
+
+    try:
+        # Convert the films dict to a list of film objects
+        film_list = []
+        if films:
+            # Get the length of the longest list to know how many films we have
+            max_len = max(len(values) for values in films.values()) if films else 0
+
+            for i in range(max_len):
+                film_obj = {}
+                for key, values in films.items():
+                    # Use the value at index i, or empty string if list is shorter
+                    film_obj[key] = values[i] if i < len(values) else ""
+                film_list.append(film_obj)
+
+        json.dump(film_list, fh, indent=2, ensure_ascii=False)
     finally:
         if should_close:
             fh.close()

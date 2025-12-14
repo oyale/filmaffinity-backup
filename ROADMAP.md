@@ -69,7 +69,7 @@
 
 ### FilmAffinity Backup
 
-* [ ] Export to JSON format (in addition to CSV)
+* [X] Export to JSON format (in addition to CSV)
 * [x] Export to Letterboxd format
 * [ ] Add `--filter` option (by year, rating, genre)
 * [ ] Add `--since` option for incremental backups
