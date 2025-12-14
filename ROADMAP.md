@@ -59,7 +59,7 @@
 
 * [X] Publish to PyPI (`pip install filmaffinity-backup`)
 * [X] Add conda-forge recipe
-* [ ] Create Docker image
+* [X] Create Docker image
 
 ---
 
