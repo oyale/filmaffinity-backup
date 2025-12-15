@@ -36,6 +36,7 @@ sys.modules["webdriver_manager.core.os_manager"] = MagicMock()
 from imdb_uploader import (
     config,  # noqa: E402
     constants,  # noqa: E402
+    data_processing,  # noqa: E402
     prompts,  # noqa: E402
     uploader,  # noqa: E402
 )
@@ -45,40 +46,40 @@ class TestNormalizeText:
     """Tests for normalize_text function."""
 
     def test_empty_string(self):
-        assert uploader.normalize_text("") == ""
+        assert data_processing.normalize_text("") == ""
 
     def test_none_input(self):
-        assert uploader.normalize_text(None) == ""
+        assert data_processing.normalize_text(None) == ""
 
     def test_basic_lowercase(self):
-        assert uploader.normalize_text("HELLO WORLD") == "hello world"
+        assert data_processing.normalize_text("HELLO WORLD") == "hello world"
 
     def test_strip_whitespace(self):
-        assert uploader.normalize_text("  hello  world  ") == "hello world"
+        assert data_processing.normalize_text("  hello  world  ") == "hello world"
 
     def test_remove_accents(self):
-        assert uploader.normalize_text("café") == "cafe"
-        assert uploader.normalize_text("naïve") == "naive"
-        assert uploader.normalize_text("Amélie") == "amelie"
+        assert data_processing.normalize_text("café") == "cafe"
+        assert data_processing.normalize_text("naïve") == "naive"
+        assert data_processing.normalize_text("Amélie") == "amelie"
 
     def test_remove_punctuation(self):
-        assert uploader.normalize_text("hello, world!") == "hello world"
-        assert uploader.normalize_text("it's a test") == "it s a test"
+        assert data_processing.normalize_text("hello, world!") == "hello world"
+        assert data_processing.normalize_text("it's a test") == "it s a test"
 
     def test_spanish_article_removal(self):
-        assert uploader.normalize_text("El Padrino") == "padrino"
-        assert uploader.normalize_text("La Casa") == "casa"
-        assert uploader.normalize_text("Los Otros") == "otros"
-        assert uploader.normalize_text("Las Chicas") == "chicas"
-        assert uploader.normalize_text("Un Hombre") == "hombre"
-        assert uploader.normalize_text("Una Mujer") == "mujer"
+        assert data_processing.normalize_text("El Padrino") == "padrino"
+        assert data_processing.normalize_text("La Casa") == "casa"
+        assert data_processing.normalize_text("Los Otros") == "otros"
+        assert data_processing.normalize_text("Las Chicas") == "chicas"
+        assert data_processing.normalize_text("Un Hombre") == "hombre"
+        assert data_processing.normalize_text("Una Mujer") == "mujer"
 
     def test_article_only_at_start(self):
         # 'el' in middle should stay
-        assert uploader.normalize_text("Hotel Rwanda") == "hotel rwanda"
+        assert data_processing.normalize_text("Hotel Rwanda") == "hotel rwanda"
 
     def test_complex_title(self):
-        result = uploader.normalize_text("El Señor de los Anillos: La Comunidad del Anillo")
+        result = data_processing.normalize_text("El Señor de los Anillos: La Comunidad del Anillo")
         assert "senor" in result  # accent removed
         assert "anillos" in result
 
@@ -289,7 +290,6 @@ class TestParseImdbId:
     def test_embedded_tt_in_text(self):
         """Test IDs embedded in surrounding text."""
         # The parse_imdb_id function should extract from URLs but not random text
-        # Security fix: no longer extracts from arbitrary text containing substring
         assert prompts.parse_imdb_id("Check out imdb.com/title/tt1234567 for details") is None
         # But not from non-URL text
         assert prompts.parse_imdb_id("The ID is tt1234567 in the database") is None
@@ -307,17 +307,19 @@ class TestConstants:
         assert uploader.SKIP_USER_CHOICE == "user_choice"
 
     def test_skip_reason_to_file_mapping(self):
-        assert uploader.SKIP_REASON_TO_FILE[uploader.SKIP_AMBIGUOUS] == "skipped_ambiguous.csv"
-        assert uploader.SKIP_REASON_TO_FILE[uploader.SKIP_NOT_FOUND] == "skipped_not_found.csv"
-        assert uploader.SKIP_REASON_TO_FILE[uploader.SKIP_SAME_RATING] == "skipped_same_rating.csv"
+        assert constants.SKIP_REASON_TO_FILE[constants.SKIP_AMBIGUOUS] == "skipped_ambiguous.csv"
+        assert constants.SKIP_REASON_TO_FILE[constants.SKIP_NOT_FOUND] == "skipped_not_found.csv"
+        assert (
+            constants.SKIP_REASON_TO_FILE[constants.SKIP_SAME_RATING] == "skipped_same_rating.csv"
+        )
 
     def test_retry_category_to_file_mapping(self):
-        assert uploader.RETRY_CATEGORY_TO_FILE["ambiguous"] == "skipped_ambiguous.csv"
-        assert uploader.RETRY_CATEGORY_TO_FILE["not_found"] == "skipped_not_found.csv"
+        assert constants.RETRY_CATEGORY_TO_FILE["ambiguous"] == "skipped_ambiguous.csv"
+        assert constants.RETRY_CATEGORY_TO_FILE["not_found"] == "skipped_not_found.csv"
 
     def test_confidence_thresholds(self):
         assert 0 < constants.DEFAULT_CONFIDENCE_THRESHOLD < 1
-        assert 0 < uploader.DIRECTOR_LOOKUP_THRESHOLD <= 1
+        assert 0 < constants.DIRECTOR_LOOKUP_THRESHOLD <= 1
 
 
 class TestLoadRetryItems:
@@ -477,16 +479,16 @@ class TestCSVFieldnames:
     """Tests for CSV fieldname constants."""
 
     def test_fieldnames_defined(self):
-        assert "title" in uploader.CSV_FIELDNAMES
-        assert "year" in uploader.CSV_FIELDNAMES
-        assert "directors" in uploader.CSV_FIELDNAMES
-        assert "user score" in uploader.CSV_FIELDNAMES
-        assert "original title" in uploader.CSV_FIELDNAMES
+        assert "title" in constants.CSV_FIELDNAMES
+        assert "year" in constants.CSV_FIELDNAMES
+        assert "directors" in constants.CSV_FIELDNAMES
+        assert "user score" in constants.CSV_FIELDNAMES
+        assert "original title" in constants.CSV_FIELDNAMES
 
     def test_fieldnames_with_reason(self):
-        assert "skip_reason" in uploader.CSV_FIELDNAMES_WITH_REASON
-        for field in uploader.CSV_FIELDNAMES:
-            assert field in uploader.CSV_FIELDNAMES_WITH_REASON
+        assert "skip_reason" in constants.CSV_FIELDNAMES_WITH_REASON
+        for field in constants.CSV_FIELDNAMES:
+            assert field in constants.CSV_FIELDNAMES_WITH_REASON
 
 
 class TestSeleniumSelectors:
