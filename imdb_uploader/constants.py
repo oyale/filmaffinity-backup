@@ -45,6 +45,9 @@ DEFAULT_CONFIG: dict[str, Any] = {
     "login_wait": 2.0,
     "captcha_wait": 5.0,
     "manual_interaction_wait": 1.0,
+    "rating_wait": 1.0,
+    "search_wait": 0.5,
+    "element_wait": 0.5,
 }
 
 

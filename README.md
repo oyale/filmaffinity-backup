@@ -507,7 +507,12 @@ Example config file (`upload_imdb.json`):
     "confirm_threshold": 0.75,
     "no_overwrite": false,
     "skipped_dir": "skipped",
-    "max_retries": 3
+    "max_retries": 3,
+    "page_load_wait": 2.0,
+    "element_wait": 0.5,
+    "login_wait": 2.0,
+    "captcha_wait": 5.0,
+    "rating_wait": 1.0
 }
 ```
 
@@ -517,6 +522,25 @@ The script searches for config files in this order:
 2. `upload_imdb.json` (current directory)
 3. `~/.config/upload_imdb/config.json`
 4. `~/.upload_imdb.json`
+
+#### Environment Variables
+
+Timing settings can also be configured using environment variables, which take precedence over config file settings:
+
+```bash
+export PAGE_LOAD_WAIT=3.0
+export ELEMENT_WAIT=1.0
+export LOGIN_WAIT=5.0
+export CAPTCHA_WAIT=10.0
+export RATING_WAIT=2.0
+export SEARCH_WAIT=1.0
+```
+
+Environment variables are useful for:
+
+* CI/CD pipelines
+* Docker containers
+* Temporary overrides without modifying config files
 
 #### Session Persistence
 

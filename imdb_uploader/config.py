@@ -51,7 +51,15 @@ DEFAULT_CONFIG_PATHS = [
 
 
 def load_config(config_path: str | None = None) -> dict[str, Any]:
-    """Load configuration from a JSON file.
+    """Load configuration from a JSON file and environment variables.
+
+    Environment variables override config file settings for timing values:
+    - PAGE_LOAD_WAIT: page_load_wait (float)
+    - ELEMENT_WAIT: element_wait (float)
+    - LOGIN_WAIT: login_wait (float)
+    - CAPTCHA_WAIT: captcha_wait (float)
+    - RATING_WAIT: rating_wait (float)
+    - SEARCH_WAIT: search_wait (float)
 
     Args:
         config_path: Explicit path to config file. If None, searches default locations.
@@ -74,6 +82,26 @@ def load_config(config_path: str | None = None) -> dict[str, Any]:
                 break
             except (OSError, json.JSONDecodeError) as e:
                 print(f"Warning: Could not load config from {path}: {e}")
+
+    # Override with environment variables (for timing settings)
+    # Environment variables take precedence over config file
+    env_mappings = {
+        "PAGE_LOAD_WAIT": ("page_load_wait", float),
+        "ELEMENT_WAIT": ("element_wait", float),
+        "LOGIN_WAIT": ("login_wait", float),
+        "CAPTCHA_WAIT": ("captcha_wait", float),
+        "RATING_WAIT": ("rating_wait", float),
+        "SEARCH_WAIT": ("search_wait", float),
+    }
+
+    for env_var, (config_key, type_func) in env_mappings.items():
+        env_value = os.environ.get(env_var)
+        if env_value is not None:
+            try:
+                config[config_key] = type_func(env_value)
+                print(f"Loaded {config_key} from environment variable {env_var}")
+            except ValueError as e:
+                print(f"Warning: Invalid value for {env_var} ({env_value}): {e}")
 
     return config
 

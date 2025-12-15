@@ -62,11 +62,16 @@ from .config import (
     save_config,
 )
 from .constants import (
+    CAPTCHA_WAIT,
     DEFAULT_CONFIDENCE_THRESHOLD,
     DIRECTOR_FETCH_CANDIDATE_MIN_SCORE,
     DIRECTOR_FETCH_LIMIT,
     DIRECTOR_LOOKUP_THRESHOLD,
+    ELEMENT_INTERACTION_WAIT,
+    LOGIN_WAIT,
+    MANUAL_INTERACTION_WAIT,
     MAX_RETRIES,
+    PAGE_LOAD_WAIT,
     RATE_LIMIT_COOLDOWN_INITIAL,
     RATE_LIMIT_COOLDOWN_MAX,
     SELECTOR_CAPTCHA_INDICATORS,
@@ -624,7 +629,15 @@ def wait_for_login_manual(driver: WebDriver) -> None:
 
 
 def try_automated_login(
-    driver: WebDriver, username: str, password: str, timeout: int = 30, debug: bool = False
+    driver: WebDriver,
+    username: str,
+    password: str,
+    timeout: int = 30,
+    debug: bool = False,
+    login_wait: float = LOGIN_WAIT,
+    page_load_wait: float = PAGE_LOAD_WAIT,
+    element_wait: float = ELEMENT_INTERACTION_WAIT,
+    captcha_wait: float = CAPTCHA_WAIT,
 ) -> bool:
     """Try a heuristic automated login flow via IMDb account (not Amazon).
     Returns True if login likely succeeded, False otherwise.
@@ -636,7 +649,7 @@ def try_automated_login(
     driver.get("https://www.imdb.com/registration/signin")
     try:
         WebDriverWait(driver, 10).until(EC.presence_of_element_located((By.TAG_NAME, "body")))
-        time.sleep(2)
+        time.sleep(page_load_wait)
 
         # Step 0: Check if we're on the "Sign in to existing account" vs "Create new account" page
         # This page appears at /registration/signin/?r=true
@@ -665,7 +678,7 @@ def try_automated_login(
             if existing_account_btn and existing_account_btn.is_displayed():
                 logger.debug("Found 'Sign in to existing account' button, clicking...")
                 existing_account_btn.click()
-                time.sleep(2)
+                time.sleep(element_wait)
         except Exception as e:
             logger.debug(f"No existing account button found or error: {e}")
 
@@ -689,7 +702,7 @@ def try_automated_login(
                         logger.debug(f"Found IMDb sign-in button: {btn_text[:50]}")
                         btn.click()
                         imdb_signin_clicked = True
-                        time.sleep(2)
+                        time.sleep(element_wait)
                         break
             except Exception:
                 continue
@@ -704,7 +717,7 @@ def try_automated_login(
                         logger.debug("Found IMDb link by text")
                         link.click()
                         imdb_signin_clicked = True
-                        time.sleep(2)
+                        time.sleep(element_wait)
                         break
             except Exception:
                 pass
@@ -723,7 +736,7 @@ def try_automated_login(
                         logger.debug(f"Found IMDb auth link: {href[:80]}")
                         link.click()
                         imdb_signin_clicked = True
-                        time.sleep(2)
+                        time.sleep(element_wait)
                         break
             except Exception:
                 pass
@@ -740,7 +753,7 @@ def try_automated_login(
                 )
             )
         )
-        time.sleep(1)
+        time.sleep(element_wait)
 
         # Fill in email/username
         email_selectors = [
@@ -771,7 +784,7 @@ def try_automated_login(
             for btn in continue_btn:
                 if btn.is_displayed():
                     btn.click()
-                    time.sleep(2)
+                    time.sleep(element_wait)
                     break
 
         # Fill in password
@@ -795,7 +808,7 @@ def try_automated_login(
 
             # Submit the form
             pwd_input.send_keys(Keys.RETURN)
-            time.sleep(5)
+            time.sleep(login_wait)
 
             # Check for CAPTCHA - if detected, ask user to solve it
             captcha_detected = detect_captcha(driver)
@@ -807,7 +820,7 @@ def try_automated_login(
                 print("  A CAPTCHA challenge has appeared.")
                 print("  Please solve it in the browser window.")
                 input("  Press Enter here once you've completed the CAPTCHA...")
-                time.sleep(2)
+                time.sleep(captcha_wait)
 
             # Check if we're logged in by looking for user menu
             user_menu = driver.find_elements(
@@ -877,7 +890,9 @@ def detect_captcha(driver: WebDriver) -> bool:
     return False
 
 
-def imdb_search_and_open(driver: WebDriver, title: str, year: str | None = None) -> bool:
+def imdb_search_and_open(
+    driver: WebDriver, title: str, year: str | None = None, page_load_wait: float = PAGE_LOAD_WAIT
+) -> bool:
     """Search IMDb for a title and open the first result.
 
     Args:
@@ -904,7 +919,7 @@ def imdb_search_and_open(driver: WebDriver, title: str, year: str | None = None)
             elems = driver.find_elements(By.CSS_SELECTOR, sel)
             if elems:
                 elems[0].click()
-                time.sleep(1)
+                time.sleep(page_load_wait)
                 return True
     except Exception:
         pass
@@ -1036,7 +1051,12 @@ def get_existing_rating(driver: WebDriver, debug: bool = False) -> int | None:
 # prompt_select_candidate are now imported from .prompts module
 
 
-def try_rate_on_page(driver: WebDriver, score: int) -> bool:
+def try_rate_on_page(
+    driver: WebDriver,
+    score: int,
+    element_wait: float = ELEMENT_INTERACTION_WAIT,
+    rating_wait: float = MANUAL_INTERACTION_WAIT,
+) -> bool:
     """Attempt to click the rating star for a given score.
 
     Args:
@@ -1066,7 +1086,7 @@ def try_rate_on_page(driver: WebDriver, score: int) -> bool:
                     if btn.is_displayed():
                         js_click(btn)
                         logger.debug("Opened rating modal")
-                        time.sleep(1.5)
+                        time.sleep(element_wait)
                         modal_opened = True
                         break
                 except Exception:
@@ -1083,7 +1103,7 @@ def try_rate_on_page(driver: WebDriver, score: int) -> bool:
     # Step 2: Click the star button with aria-label="Rate {score}"
     star_clicked = False
     try:
-        time.sleep(0.5)
+        time.sleep(element_wait)
         # Use CSS selector for the star buttons
         star_buttons = driver.find_elements(By.CSS_SELECTOR, SELECTOR_STAR_BUTTONS)
         if star_buttons and len(star_buttons) >= score:
@@ -1092,14 +1112,14 @@ def try_rate_on_page(driver: WebDriver, score: int) -> bool:
             js_click(target_star)
             star_clicked = True
             logger.debug(f"Clicked star {score} (by index)")
-            time.sleep(0.5)
+            time.sleep(element_wait)
         else:
             # Fallback: try aria-label selector
             star = driver.find_element(By.CSS_SELECTOR, f"button[aria-label='Rate {score}']")
             js_click(star)
             star_clicked = True
             logger.debug(f"Clicked star {score} (by aria-label)")
-            time.sleep(0.5)
+            time.sleep(element_wait)
     except Exception as e:
         logger.debug(f"Star click exception: {e}")
 
@@ -1109,7 +1129,7 @@ def try_rate_on_page(driver: WebDriver, score: int) -> bool:
 
     # Step 3: Click the "Rate" submit button to save the rating
     # Wait for the button to become active after star selection
-    time.sleep(0.8)
+    time.sleep(rating_wait)
 
     submit_clicked = False
     try:
@@ -1125,7 +1145,7 @@ def try_rate_on_page(driver: WebDriver, score: int) -> bool:
                     js_click(btn)
                     submit_clicked = True
                     logger.debug("Clicked Rate submit button")
-                    time.sleep(1)
+                    time.sleep(rating_wait)
                     break
             except Exception:
                 continue
@@ -1147,7 +1167,7 @@ def try_rate_on_page(driver: WebDriver, score: int) -> bool:
                         js_click(btn)
                         submit_clicked = True
                         logger.debug("Clicked Rate button (text match)")
-                        time.sleep(1)
+                        time.sleep(rating_wait)
                         break
                 except Exception:
                     continue
@@ -1161,7 +1181,7 @@ def try_rate_on_page(driver: WebDriver, score: int) -> bool:
                         js_click(btn)
                         submit_clicked = True
                         logger.debug("Clicked Rate button (prompt selector)")
-                        time.sleep(1)
+                        time.sleep(rating_wait)
                         break
                 except Exception:
                     continue
@@ -1180,7 +1200,7 @@ def try_rate_on_page(driver: WebDriver, score: int) -> bool:
                             js_click(btn)
                             submit_clicked = True
                             logger.debug("Clicked button near starbar")
-                            time.sleep(1)
+                            time.sleep(rating_wait)
                             break
             except Exception:
                 pass
@@ -1198,7 +1218,7 @@ def try_rate_on_page(driver: WebDriver, score: int) -> bool:
         actions = ActionChains(driver)
         actions.send_keys(Keys.RETURN).perform()
         logger.debug("Pressed Enter to submit")
-        time.sleep(1)
+        time.sleep(rating_wait)
         return True
     except Exception:
         pass
@@ -1543,7 +1563,7 @@ def run_dry_run(items: list[MovieItem], ia: Any, output_path: str) -> None:
     print("Dry-run complete.")
 
 
-def setup_browser_session(args: argparse.Namespace) -> WebDriver:
+def setup_browser_session(args: argparse.Namespace, config: dict[str, Any]) -> WebDriver:
     """Set up browser and handle login.
 
     Args:
@@ -1560,7 +1580,16 @@ def setup_browser_session(args: argparse.Namespace) -> WebDriver:
         password = os.environ.get("IMDB_PASSWORD")
         if username and password:
             print("Attempting automated login...")
-            logged_in = try_automated_login(driver, username, password, debug=args.debug)
+            logged_in = try_automated_login(
+                driver,
+                username,
+                password,
+                debug=args.debug,
+                login_wait=config.get("login_wait", LOGIN_WAIT),
+                page_load_wait=config.get("page_load_wait", PAGE_LOAD_WAIT),
+                element_wait=config.get("element_wait", ELEMENT_INTERACTION_WAIT),
+                captcha_wait=config.get("captcha_wait", CAPTCHA_WAIT),
+            )
             if not logged_in:
                 print(
                     "Automated login failed or was inconclusive. Falling back to manual login flow."
@@ -1715,6 +1744,9 @@ def process_single_item(
     args: argparse.Namespace,
     stats: Stats,
     skipped_items: list[SkippedEntry],
+    page_load_wait: float = PAGE_LOAD_WAIT,
+    element_wait: float = ELEMENT_INTERACTION_WAIT,
+    rating_wait: float = MANUAL_INTERACTION_WAIT,
 ) -> str:
     """Process a single movie item.
 
@@ -1801,9 +1833,9 @@ def process_single_item(
         url = f"https://www.imdb.com/title/{imdb_id}/"
         logger.debug(f"  Opening: {url}")
         driver.get(url)
-        time.sleep(1)
+        time.sleep(page_load_wait)
     else:
-        found = imdb_search_and_open(driver, title, year)
+        found = imdb_search_and_open(driver, title, year, page_load_wait)
         if not found:
             print(f'  Could not find search results for "{title}". Skipping.')
             stats["skipped_not_found"] += 1
@@ -1811,7 +1843,7 @@ def process_single_item(
             return "continue"
 
     # Check for existing rating
-    time.sleep(1)
+    time.sleep(element_wait)
     existing_rating = get_existing_rating(driver, debug=args.debug)
     if existing_rating is not None:
         # If existing rating matches desired score, skip silently (already correct)
@@ -1844,7 +1876,7 @@ def process_single_item(
     success = False
     if args.auto_rate and score:
         try:
-            success = try_rate_on_page(driver, score)
+            success = try_rate_on_page(driver, score, element_wait, rating_wait)
         except Exception as e:
             logger.warning(f"  Auto-rate exception: {e}")
             success = False
@@ -1864,7 +1896,7 @@ def process_single_item(
         print("  Rating applied (best-effort).")
 
     stats["applied"] += 1
-    time.sleep(0.5)
+    time.sleep(element_wait)
     return "ok"
 
 
@@ -2051,6 +2083,12 @@ def main():
             "debug": args.debug,
             "verbose": args.verbose,
             "no_beep": args.no_beep,
+            # Timing settings
+            "page_load_wait": config.get("page_load_wait", PAGE_LOAD_WAIT),
+            "element_wait": config.get("element_wait", ELEMENT_INTERACTION_WAIT),
+            "login_wait": config.get("login_wait", LOGIN_WAIT),
+            "captcha_wait": config.get("captcha_wait", CAPTCHA_WAIT),
+            "rating_wait": config.get("rating_wait", MANUAL_INTERACTION_WAIT),
         }
         save_config(save_cfg, args.save_config)
         return
@@ -2114,7 +2152,7 @@ def main():
         print("Warning: IMDbPY not available. Confidence-based matching will be disabled.")
 
     # Set up browser session
-    driver = setup_browser_session(args)
+    driver = setup_browser_session(args, config)
 
     # Process items - restore stats from session if resuming
     if args.resume and session.stats:
@@ -2143,7 +2181,17 @@ def main():
                 f"\n[{idx}/{total_items}] ({progress_pct:.1f}%) Processing: {title} ({year})  -> score: {score}"
             )
 
-            result = process_single_item(driver, ia, item, args, stats, skipped_items)
+            result = process_single_item(
+                driver,
+                ia,
+                item,
+                args,
+                stats,
+                skipped_items,
+                config.get("page_load_wait", PAGE_LOAD_WAIT),
+                config.get("element_wait", ELEMENT_INTERACTION_WAIT),
+                config.get("rating_wait", MANUAL_INTERACTION_WAIT),
+            )
 
             # Update session after each item
             session.mark_processed(title, idx)
