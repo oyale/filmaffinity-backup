@@ -140,7 +140,7 @@
 
 | Issue | Priority | Notes |
 |-------|----------|-------|
-| [Hardcoded wait times](https://github.com/oyale/filmaffinity-backup/issues/56) | Medium | Make configurable |
+| [Hardcoded wait times](https://github.com/oyale/filmaffinity-backup/issues/56) | Medium | ✅ **COMPLETED** - Replace with configurable values |
 | [No retry on FilmAffinity scraper](https://github.com/oyale/filmaffinity-backup/issues/57) | Medium | Add similar retry logic as uploader |
 
 ---
