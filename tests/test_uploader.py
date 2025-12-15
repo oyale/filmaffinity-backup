@@ -289,7 +289,8 @@ class TestParseImdbId:
     def test_embedded_tt_in_text(self):
         """Test IDs embedded in surrounding text."""
         # The parse_imdb_id function should extract from URLs but not random text
-        assert prompts.parse_imdb_id("Check out imdb.com/title/tt1234567 for details") == "1234567"
+        # Security fix: no longer extracts from arbitrary text containing substring
+        assert prompts.parse_imdb_id("Check out imdb.com/title/tt1234567 for details") is None
         # But not from non-URL text
         assert prompts.parse_imdb_id("The ID is tt1234567 in the database") is None
 

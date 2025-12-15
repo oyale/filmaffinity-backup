@@ -8,6 +8,7 @@ from __future__ import annotations
 
 import re
 import time
+import urllib.parse
 from typing import TYPE_CHECKING
 
 from selenium import webdriver
@@ -335,7 +336,13 @@ def try_automated_login(
                 return True
 
             # Also check if we're on the IMDb homepage (sometimes login redirects there)
-            if "imdb.com" in driver.current_url and "signin" not in driver.current_url.lower():
+            parsed_url = urllib.parse.urlparse(driver.current_url)
+            host = parsed_url.hostname
+            if (
+                host
+                and (host == "imdb.com" or host.endswith(".imdb.com"))
+                and "signin" not in driver.current_url.lower()
+            ):
                 # Double check by looking for sign-in link (if present, we're not logged in)
                 signin_links = driver.find_elements(
                     By.CSS_SELECTOR, "a[href*='signin'], a[href*='registration']"

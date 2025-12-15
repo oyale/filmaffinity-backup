@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import re
+import urllib.parse
 
 __all__ = [
     "beep",
@@ -74,9 +75,17 @@ def parse_imdb_id(input_str: str) -> str | None:
     input_str = input_str.strip()
 
     # Try to extract from URL pattern
-    url_match = re.search(r"imdb\.com/title/tt(\d+)", input_str)
-    if url_match:
-        return url_match.group(1)
+    try:
+        parsed_url = urllib.parse.urlparse(input_str)
+        host = parsed_url.hostname
+        if host and (host == "imdb.com" or host.endswith(".imdb.com")):
+            # Extract IMDb ID from path like /title/tt1234567/
+            path_match = re.search(r"/title/tt(\d+)/?", parsed_url.path)
+            if path_match:
+                return path_match.group(1)
+    except Exception:
+        # Not a valid URL, continue with other patterns
+        pass
 
     # Try tt-prefixed pattern
     tt_match = re.match(r"^tt(\d+)$", input_str, re.IGNORECASE)

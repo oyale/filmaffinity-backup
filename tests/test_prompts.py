@@ -65,6 +65,9 @@ class TestParseImdbId:
         assert parse_imdb_id("invalid") is None
         assert parse_imdb_id("abc1234567") is None
         assert parse_imdb_id("https://google.com/") is None
+        # Test substring attack prevention
+        assert parse_imdb_id("http://evil.com/imdb.com/title/tt1234567/") is None
+        assert parse_imdb_id("maliciousimdb.com/title/tt1234567") is None
 
     def test_real_imdb_ids(self):
         # The Godfather
