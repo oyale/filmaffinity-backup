@@ -621,6 +621,16 @@ class TestLoadConfig:
         loaded_cfg = config.load_config("/nonexistent/path/to/config.json")
         assert "headless" in loaded_cfg  # Should have defaults
 
+    @patch.dict(os.environ, {"PAGE_LOAD_WAIT": "invalid_float_value"}, clear=False)
+    def test_load_config_invalid_env_var(self):
+        """Test that invalid environment variable values are handled gracefully."""
+        # Should return defaults and print warning for invalid env var
+        loaded_cfg = config.load_config(None)
+        # Should still have defaults despite invalid env var
+        assert "page_load_wait" in loaded_cfg
+        # Should use default value, not the invalid one
+        assert isinstance(loaded_cfg["page_load_wait"], (int, float))
+
 
 class TestSessionState:
     """Tests for SessionState class."""
