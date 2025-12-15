@@ -140,8 +140,8 @@
 
 | Issue | Priority | Notes |
 |-------|----------|-------|
-| [Hardcoded wait times](https://github.com/oyale/filmaffinity-backup/issues/56) | Medium | ✅ **COMPLETED** - Replace with configurable values |
 | [No retry on FilmAffinity scraper](https://github.com/oyale/filmaffinity-backup/issues/57) | Medium | Add similar retry logic as uploader |
+| [No end-to-end (E2E) test coverage](https://github.com/oyale/filmaffinity-backup/issues/73) | Medium | Add E2E tests to cover full backup and upload flows |
 
 ---
 

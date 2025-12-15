@@ -148,7 +148,14 @@ filmaffinity-backup/
 │   ├── scraper.py         # Web scraping functions
 │   └── cli.py             # Command-line interface
 ├── imdb_uploader/         # IMDb uploader package
-│   ├── uploader.py        # Upload logic & Selenium automation
+│   ├── uploader.py        # Main upload orchestration
+│   ├── browser_automation.py  # Selenium WebDriver operations
+│   ├── data_processing.py     # CSV reading & IMDb matching
+│   ├── reporting.py           # Output formatting & statistics
+│   ├── config.py          # Configuration & session management
+│   ├── constants.py       # Constants and type definitions
+│   ├── prompts.py         # User interaction prompts
+│   ├── csv_validator.py   # CSV format validation
 │   └── cli.py             # Command-line interface
 ├── tests/                 # Unit tests
 ├── data/                  # Downloaded CSV files (per user)
