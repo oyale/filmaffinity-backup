@@ -26,6 +26,7 @@ import argparse
 import csv
 import difflib
 import json
+import logging
 import os
 import re
 import sys
@@ -99,6 +100,9 @@ from .prompts import (
     prompt_select_candidate,
     set_beep_enabled,
 )
+
+# Set up logging
+logger = logging.getLogger(__name__)
 
 # =============================================================================
 # Custom Exceptions
@@ -206,7 +210,9 @@ def read_csv(path: str) -> list[MovieItem]:
                 }
             )
     if not items:
-        print(f"read_csv: no items parsed from {path}. Detected header fields: {reader.fieldnames}")
+        logger.warning(
+            f"read_csv: no items parsed from {path}. Detected header fields: {reader.fieldnames}"
+        )
     return items
 
 
@@ -309,9 +315,9 @@ def find_imdb_match(
         # Retry loop for handling HTTP errors with cooldown
         for attempt in range(MAX_RETRIES):
             try:
-                print(f"[imdbpy] searching for: {q!r}")
+                logger.info(f"[imdbpy] searching for: {q!r}")
                 results = ia.search_movie(q) or []
-                print(f"[imdbpy] -> {len(results)} results for query: {q!r}")
+                logger.info(f"[imdbpy] -> {len(results)} results for query: {q!r}")
                 if results:
                     sample = []
                     for r in results[:5]:
@@ -319,7 +325,7 @@ def find_imdb_match(
                             sample.append(f"{r.get('title')} ({r.get('year')})")
                         except Exception:
                             sample.append(str(r))
-                    print(f"[imdbpy] sample results: {sample}")
+                    logger.debug(f"[imdbpy] sample results: {sample}")
                 break  # Success, exit retry loop
             except Exception as e:
                 error_str = str(e).lower()
@@ -336,14 +342,14 @@ def find_imdb_match(
                 )
 
                 if is_http_error and attempt < MAX_RETRIES - 1:
-                    print(
+                    logger.info(
                         f"[imdbpy] ⚠️  HTTP error detected, cooling down for {cooldown_seconds}s before retry ({attempt + 1}/{MAX_RETRIES})..."
                     )
                     time.sleep(cooldown_seconds)
                     # Exponential backoff
                     cooldown_seconds = min(cooldown_seconds * 2, RATE_LIMIT_COOLDOWN_MAX)
                 else:
-                    print(f"[imdbpy] search exception for query {q!r}: {e}")
+                    logger.warning(f"[imdbpy] search exception for query {q!r}: {e}")
                 results = []
 
         if not results:
@@ -421,7 +427,7 @@ def find_imdb_match(
 
         # If title+year alone is confident enough, skip director lookups
         if best and best["score"] >= DIRECTOR_LOOKUP_THRESHOLD:
-            print(
+            logger.info(
                 f"[imdbpy] high confidence ({best['score']:.3f}) from title+year; skipping director fetchs"
             )
             best["candidates"] = sorted(
@@ -458,7 +464,7 @@ def find_imdb_match(
                         # otherwise fetch details (network call) with retry on HTTP errors
                         for update_attempt in range(2):
                             try:
-                                print(
+                                logger.debug(
                                     f"[imdbpy] fetching details for candidate {getattr(cand, 'movieID', '<unknown>')} to read directors"
                                 )
                                 ia.update(cand)
@@ -484,7 +490,9 @@ def find_imdb_match(
                                     or "httperror" in error_str
                                 )
                                 if is_http_error and update_attempt == 0:
-                                    print("[imdbpy] ⚠️  HTTP error on update, cooling down 5s...")
+                                    logger.info(
+                                        "[imdbpy] ⚠️  HTTP error on update, cooling down 5s..."
+                                    )
                                     time.sleep(5)
                                 else:
                                     break  # Give up after retry
@@ -615,7 +623,9 @@ def wait_for_login_manual(driver: WebDriver) -> None:
     input()
 
 
-def try_automated_login(driver: WebDriver, username: str, password: str, timeout: int = 30) -> bool:
+def try_automated_login(
+    driver: WebDriver, username: str, password: str, timeout: int = 30, debug: bool = False
+) -> bool:
     """Try a heuristic automated login flow via IMDb account (not Amazon).
     Returns True if login likely succeeded, False otherwise.
 
@@ -653,11 +663,11 @@ def try_automated_login(driver: WebDriver, username: str, password: str, timeout
                         break
 
             if existing_account_btn and existing_account_btn.is_displayed():
-                print("  [debug] Found 'Sign in to existing account' button, clicking...")
+                logger.debug("Found 'Sign in to existing account' button, clicking...")
                 existing_account_btn.click()
                 time.sleep(2)
         except Exception as e:
-            print(f"  [debug] No existing account button found or error: {e}")
+            logger.debug(f"No existing account button found or error: {e}")
 
         # Look for "Sign in with IMDb" button specifically
         # IMDb uses auth-provider buttons with different href patterns
@@ -676,7 +686,7 @@ def try_automated_login(driver: WebDriver, username: str, password: str, timeout
                 if btn.is_displayed() and ("imdb" in btn_text or "imdb_us" in btn_href):
                     # Make sure it's not Amazon
                     if "amazon" not in btn_text and "amazon" not in btn_href:
-                        print(f"  [debug] Found IMDb sign-in button: {btn_text[:50]}")
+                        logger.debug(f"Found IMDb sign-in button: {btn_text[:50]}")
                         btn.click()
                         imdb_signin_clicked = True
                         time.sleep(2)
@@ -691,7 +701,7 @@ def try_automated_login(driver: WebDriver, username: str, password: str, timeout
                 for link in imdb_links:
                     href = (link.get_attribute("href") or "").lower()
                     if link.is_displayed() and "amazon" not in href:
-                        print("  [debug] Found IMDb link by text")
+                        logger.debug("Found IMDb link by text")
                         link.click()
                         imdb_signin_clicked = True
                         time.sleep(2)
@@ -710,7 +720,7 @@ def try_automated_login(driver: WebDriver, username: str, password: str, timeout
                     if link.is_displayed() and (
                         "imdb_us" in href or ("imdb" in text and "amazon" not in text)
                     ):
-                        print(f"  [debug] Found IMDb auth link: {href[:80]}")
+                        logger.debug(f"Found IMDb auth link: {href[:80]}")
                         link.click()
                         imdb_signin_clicked = True
                         time.sleep(2)
@@ -719,7 +729,7 @@ def try_automated_login(driver: WebDriver, username: str, password: str, timeout
                 pass
 
         if not imdb_signin_clicked:
-            print("  [debug] Could not find IMDb sign-in button, trying generic form...")
+            logger.debug("Could not find IMDb sign-in button, trying generic form...")
 
         # Wait for the login form (IMDb or Amazon form)
         WebDriverWait(driver, 10).until(
@@ -750,7 +760,7 @@ def try_automated_login(driver: WebDriver, username: str, password: str, timeout
         if email_input:
             email_input.clear()
             email_input.send_keys(username)
-            print("  [debug] Entered username/email")
+            logger.debug("Entered username/email")
 
         # Look for continue button or direct login form
         continue_btn = driver.find_elements(
@@ -781,7 +791,7 @@ def try_automated_login(driver: WebDriver, username: str, password: str, timeout
         if pwd_input:
             pwd_input.clear()
             pwd_input.send_keys(password)
-            print("  [debug] Entered password")
+            logger.debug("Entered password")
 
             # Submit the form
             pwd_input.send_keys(Keys.RETURN)
@@ -806,7 +816,7 @@ def try_automated_login(driver: WebDriver, username: str, password: str, timeout
                 ".navbar__user, .ipc-button[aria-label*='Account']",
             )
             if user_menu:
-                print("  [debug] Login appears successful (found user menu)")
+                logger.debug("Login appears successful (found user menu)")
                 return True
 
             # Also check if we're on the IMDb homepage (sometimes login redirects there)
@@ -821,11 +831,11 @@ def try_automated_login(driver: WebDriver, username: str, password: str, timeout
                     if link.is_displayed() and "sign in" in link.text.lower()
                 ]
                 if not visible_signin:
-                    print("  [debug] Login appears successful (no sign-in link visible)")
+                    logger.debug("Login appears successful (no sign-in link visible)")
                     return True
 
     except Exception as e:
-        print(f"  [debug] Auto-login exception: {e}")
+        logger.debug(f"Auto-login exception: {e}")
     return False
 
 
@@ -924,7 +934,7 @@ def get_existing_rating(driver: WebDriver, debug: bool = False) -> int | None:
         unrated_elem = driver.find_elements(By.XPATH, SELECTOR_USER_RATING_UNRATED)
         if unrated_elem:
             if debug:
-                print("  [debug] Found 'unrated' element - not rated")
+                logger.debug("Found 'unrated' element - not rated")
             return None
 
         # Look for the rated score element
@@ -932,7 +942,7 @@ def get_existing_rating(driver: WebDriver, debug: bool = False) -> int | None:
         if rated_elem:
             text = rated_elem[0].text.strip()
             if debug:
-                print(f"  [debug] Found 'score' element with text: {text!r}")
+                logger.debug(f"Found 'score' element with text: {text!r}")
             if text.isdigit():
                 rating = int(text)
                 if 1 <= rating <= 10:
@@ -942,20 +952,20 @@ def get_existing_rating(driver: WebDriver, debug: bool = False) -> int | None:
         user_rating_div = driver.find_elements(By.XPATH, SELECTOR_USER_RATING_SECTION)
         if not user_rating_div:
             if debug:
-                print("  [debug] No user rating section found")
+                logger.debug("No user rating section found")
             return None
 
         user_section = user_rating_div[0]
         section_text = user_section.text.strip()
         if debug:
-            print(f"  [debug] User rating section text: {section_text!r}")
+            logger.debug(f"User rating section text: {section_text!r}")
 
         # If the section just says "Rate" or "YOUR RATING\nRate", user hasn't rated
         # A rated movie shows "YOUR RATING\n8" or similar
         section_lower = section_text.lower()
         if section_lower in ("rate", "your rating\nrate", "your rating rate"):
             if debug:
-                print("  [debug] Section shows 'Rate' - not rated")
+                logger.debug("Section shows 'Rate' - not rated")
             return None
 
         # Method 1: Look for the blue star rating number specifically
@@ -965,12 +975,12 @@ def get_existing_rating(driver: WebDriver, debug: bool = False) -> int | None:
         for elem in star_rating_elems:
             text = elem.text.strip()
             if debug:
-                print(f"  [debug] Star rating element text: {text!r}")
+                logger.debug(f"Star rating element text: {text!r}")
             if text and text.isdigit():
                 rating = int(text)
                 if 1 <= rating <= 10:
                     if debug:
-                        print(f"  [debug] Found rating via star element: {rating}")
+                        logger.debug(f"Found rating via star element: {rating}")
                     return rating
 
         # Method 2: Check aria-label on the rating button
@@ -978,7 +988,7 @@ def get_existing_rating(driver: WebDriver, debug: bool = False) -> int | None:
         for btn in buttons:
             aria = btn.get_attribute("aria-label") or ""
             if debug:
-                print(f"  [debug] Button aria-label: {aria!r}")
+                logger.debug(f"Button aria-label: {aria!r}")
             # Look for "Your rating: 8" or "Rated 8" pattern
             # Avoid matching "Rate this" or "Click to rate"
             aria_lower = aria.lower()
@@ -990,14 +1000,14 @@ def get_existing_rating(driver: WebDriver, debug: bool = False) -> int | None:
                     rating = int(match.group(1))
                     if 1 <= rating <= 10:
                         if debug:
-                            print(f"  [debug] Found rating via aria-label: {rating}")
+                            logger.debug(f"Found rating via aria-label: {rating}")
                         return rating
 
         # Method 3: Parse the section text more carefully
         # Look for pattern like "YOUR RATING\n8" where 8 is on its own line
         lines = section_text.split("\n")
         if debug:
-            print(f"  [debug] Section lines: {lines}")
+            logger.debug(f"Section lines: {lines}")
 
         for line in lines:
             line = line.strip()
@@ -1009,16 +1019,16 @@ def get_existing_rating(driver: WebDriver, debug: bool = False) -> int | None:
                 rating = int(line)
                 if 1 <= rating <= 10:
                     if debug:
-                        print(f"  [debug] Found rating via text line: {rating}")
+                        logger.debug(f"Found rating via text line: {rating}")
                     return rating
 
         # If we get here, the section exists but we couldn't find a clear rating
         # This likely means the user hasn't rated it yet
         if debug:
-            print("  [debug] Could not find clear rating in user section")
+            logger.debug("Could not find clear rating in user section")
 
     except Exception as e:
-        print(f"  [debug] get_existing_rating exception: {e}")
+        logger.debug(f"get_existing_rating exception: {e}")
     return None
 
 
@@ -1055,7 +1065,7 @@ def try_rate_on_page(driver: WebDriver, score: int) -> bool:
                 try:
                     if btn.is_displayed():
                         js_click(btn)
-                        print("  [debug] Opened rating modal")
+                        logger.debug("Opened rating modal")
                         time.sleep(1.5)
                         modal_opened = True
                         break
@@ -1064,10 +1074,10 @@ def try_rate_on_page(driver: WebDriver, score: int) -> bool:
             if modal_opened:
                 break
     except Exception as e:
-        print(f"  [debug] Modal open exception: {e}")
+        logger.debug(f"Modal open exception: {e}")
 
     if not modal_opened:
-        print("  [debug] Could not open rating modal")
+        logger.debug("Could not open rating modal")
         return False
 
     # Step 2: Click the star button with aria-label="Rate {score}"
@@ -1081,20 +1091,20 @@ def try_rate_on_page(driver: WebDriver, score: int) -> bool:
             target_star = star_buttons[score - 1]
             js_click(target_star)
             star_clicked = True
-            print(f"  [debug] Clicked star {score} (by index)")
+            logger.debug(f"Clicked star {score} (by index)")
             time.sleep(0.5)
         else:
             # Fallback: try aria-label selector
             star = driver.find_element(By.CSS_SELECTOR, f"button[aria-label='Rate {score}']")
             js_click(star)
             star_clicked = True
-            print(f"  [debug] Clicked star {score} (by aria-label)")
+            logger.debug(f"Clicked star {score} (by aria-label)")
             time.sleep(0.5)
     except Exception as e:
-        print(f"  [debug] Star click exception: {e}")
+        logger.debug(f"Star click exception: {e}")
 
     if not star_clicked:
-        print("  [debug] Could not click star")
+        logger.debug("Could not click star")
         return False
 
     # Step 3: Click the "Rate" submit button to save the rating
@@ -1111,10 +1121,10 @@ def try_rate_on_page(driver: WebDriver, score: int) -> bool:
         for btn in rate_buttons:
             try:
                 if btn.is_displayed() and btn.is_enabled():
-                    print("  [debug] Found Rate button with class 'ipc-rating-prompt__rate-button'")
+                    logger.debug("Found Rate button with class 'ipc-rating-prompt__rate-button'")
                     js_click(btn)
                     submit_clicked = True
-                    print("  [debug] Clicked Rate submit button")
+                    logger.debug("Clicked Rate submit button")
                     time.sleep(1)
                     break
             except Exception:
@@ -1136,7 +1146,7 @@ def try_rate_on_page(driver: WebDriver, score: int) -> bool:
                     if btn_text.lower() == "rate" and btn.is_displayed() and btn.is_enabled():
                         js_click(btn)
                         submit_clicked = True
-                        print("  [debug] Clicked Rate button (text match)")
+                        logger.debug("Clicked Rate button (text match)")
                         time.sleep(1)
                         break
                 except Exception:
@@ -1150,7 +1160,7 @@ def try_rate_on_page(driver: WebDriver, score: int) -> bool:
                     if "rate" in btn.text.lower() and btn.is_displayed():
                         js_click(btn)
                         submit_clicked = True
-                        print("  [debug] Clicked Rate button (prompt selector)")
+                        logger.debug("Clicked Rate button (prompt selector)")
                         time.sleep(1)
                         break
                 except Exception:
@@ -1169,14 +1179,14 @@ def try_rate_on_page(driver: WebDriver, score: int) -> bool:
                         if btn.is_displayed() and btn.is_enabled():
                             js_click(btn)
                             submit_clicked = True
-                            print("  [debug] Clicked button near starbar")
+                            logger.debug("Clicked button near starbar")
                             time.sleep(1)
                             break
             except Exception:
                 pass
 
     except Exception as e:
-        print(f"  [debug] Submit button exception: {e}")
+        logger.debug(f"Submit button exception: {e}")
 
     if submit_clicked:
         return True
@@ -1187,13 +1197,13 @@ def try_rate_on_page(driver: WebDriver, score: int) -> bool:
 
         actions = ActionChains(driver)
         actions.send_keys(Keys.RETURN).perform()
-        print("  [debug] Pressed Enter to submit")
+        logger.debug("Pressed Enter to submit")
         time.sleep(1)
         return True
     except Exception:
         pass
 
-    print("  [debug] Could not find/click submit button")
+    logger.debug("Could not find/click submit button")
     return False
 
 
@@ -1447,15 +1457,15 @@ def load_retry_items(skipped_dir: str, retry_category: str) -> list[MovieItem]:
         csv_file = os.path.join(skipped_dir, RETRY_CATEGORY_TO_FILE[cat])
         if os.path.exists(csv_file):
             cat_items = read_csv(csv_file)
-            print(f"  Loaded {len(cat_items)} items from {csv_file}")
+            logger.info(f"  Loaded {len(cat_items)} items from {csv_file}")
             items.extend(cat_items)
         else:
-            print(f"  No file found: {csv_file}")
+            logger.info(f"  No file found: {csv_file}")
 
     if items:
-        print(f"Retrying {len(items)} previously skipped items")
+        logger.info(f"Retrying {len(items)} previously skipped items")
     else:
-        print(f"No skipped items found to retry in {skipped_dir}/")
+        logger.info(f"No skipped items found to retry in {skipped_dir}/")
 
     return items
 
@@ -1550,7 +1560,7 @@ def setup_browser_session(args: argparse.Namespace) -> WebDriver:
         password = os.environ.get("IMDB_PASSWORD")
         if username and password:
             print("Attempting automated login...")
-            logged_in = try_automated_login(driver, username, password)
+            logged_in = try_automated_login(driver, username, password, debug=args.debug)
             if not logged_in:
                 print(
                     "Automated login failed or was inconclusive. Falling back to manual login flow."
@@ -1726,7 +1736,7 @@ def process_single_item(
     original_title = item.get("original_title")
 
     if original_title:
-        print(f"  Original title: {original_title}")
+        logger.debug(f"  Original title: {original_title}")
 
     # Find IMDb match
     imdb_match = None
@@ -1789,7 +1799,7 @@ def process_single_item(
     # Navigate to IMDb page
     if imdb_id:
         url = f"https://www.imdb.com/title/{imdb_id}/"
-        print(f"  Opening: {url}")
+        logger.debug(f"  Opening: {url}")
         driver.get(url)
         time.sleep(1)
     else:
@@ -1836,7 +1846,7 @@ def process_single_item(
         try:
             success = try_rate_on_page(driver, score)
         except Exception as e:
-            print("  Auto-rate exception:", e)
+            logger.warning(f"  Auto-rate exception: {e}")
             success = False
 
     if not success:
@@ -1994,6 +2004,12 @@ def main():
     # Handle --verbose as alias for --debug
     if args.verbose:
         args.debug = True
+
+    # Configure logging based on debug flag
+    if args.debug:
+        logging.basicConfig(level=logging.DEBUG, format="%(levelname)s: %(message)s")
+    else:
+        logging.basicConfig(level=logging.WARNING, format="%(levelname)s: %(message)s")
 
     # Handle --no-beep flag
     if args.no_beep:

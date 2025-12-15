@@ -140,9 +140,8 @@
 
 | Issue | Priority | Notes |
 |-------|----------|-------|
-| Some debug prints in uploader | Low | Replace with proper logging |
-| Hardcoded wait times | Medium | Make configurable |
-| No retry on FilmAffinity scraper | Medium | Add similar retry logic as uploader |
+| [Hardcoded wait times](https://github.com/oyale/filmaffinity-backup/issues/56) | Medium | Make configurable |
+| [No retry on FilmAffinity scraper](https://github.com/oyale/filmaffinity-backup/issues/57) | Medium | Add similar retry logic as uploader |
 
 ---
 
