@@ -140,10 +140,8 @@
 
 | Issue | Priority | Notes |
 |-------|----------|-------|
-| `tests.py` in root (legacy) | Low | Consider removing, using `tests/` only |
-| Some debug prints in uploader | Low | Replace with proper logging |
-| Hardcoded wait times | Medium | Make configurable |
-| No retry on FilmAffinity scraper | Medium | Add similar retry logic as uploader |
+| [No retry on FilmAffinity scraper](https://github.com/oyale/filmaffinity-backup/issues/57) | Medium | Add similar retry logic as uploader |
+| [No end-to-end (E2E) test coverage](https://github.com/oyale/filmaffinity-backup/issues/73) | Medium | Add E2E tests to cover full backup and upload flows |
 
 ---
 

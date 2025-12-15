@@ -75,6 +75,43 @@ pytest tests/ --cov=filmaffinity --cov=imdb_uploader
 pytest tests/test_scraper.py -v
 ```
 
+#### Test Types and Selenium Mocking
+
+This project uses **automated selenium mocking** to ensure tests run consistently across different environments:
+
+**Unit Tests** (default):
+
+- **Purpose**: Test individual functions and modules in isolation
+- **Selenium**: Automatically mocked to prevent browser launches
+- **Speed**: Fast execution, no external dependencies
+- **Command**: `pytest tests/`
+
+**Integration Tests**:
+
+- **Purpose**: Test real HTTP interactions with FilmAffinity servers
+- **Selenium**: Not used (tests HTTP scraping, not browser automation)
+- **Speed**: Slower due to network requests
+- **Command**: `pytest tests/ -m integration`
+- **Note**: May be rate-limited by FilmAffinity
+
+**Selenium Mocking Details**:
+
+- **Implementation**: `tests/conftest.py` mocks selenium at the module level
+- **Why**: Prevents import errors during test collection in CI environments
+- **Impact**: Zero functional impact since integration tests don't use selenium
+- **Benefit**: Consistent test behavior across local/CI environments
+
+**Test Architecture**:
+
+```text
+Unit Tests (332 tests)          Integration Tests (11 tests)
+├── Browser automation logic    ├── HTTP scraping (FilmAffinity)
+├── Data processing             ├── IMDb API client
+├── CSV validation              ├── CSV export workflows
+├── Configuration handling      └── End-to-end data pipelines
+└── Error handling
+```
+
 ## How to Contribute
 
 ### Reporting Bugs
@@ -114,17 +151,21 @@ Have an idea? Open an issue and describe:
 
 ## Project Structure
 
-```
+```text
 filmaffinity-backup/
 ├── filmaffinity/       # FilmAffinity scraper & CLI
 │   ├── cli.py          # Main CLI (fa-backup command)
 │   ├── scraper.py      # Web scraping logic
 │   └── exporters.py    # CSV export functions
 ├── imdb_uploader/      # IMDb upload functionality
-│   ├── uploader.py     # Main upload logic
+│   ├── uploader.py     # Main upload orchestration
+│   ├── browser_automation.py  # Selenium WebDriver operations
+│   ├── data_processing.py     # CSV reading & IMDb matching
+│   ├── reporting.py           # Output formatting & statistics
 │   ├── config.py       # Configuration & session management
 │   ├── constants.py    # Constants and type definitions
-│   └── prompts.py      # User interaction prompts
+│   ├── prompts.py      # User interaction prompts
+│   └── csv_validator.py # CSV format validation
 └── tests/              # Test files
 ```
 

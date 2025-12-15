@@ -39,6 +39,15 @@ DEFAULT_CONFIG: dict[str, Any] = {
     "rate_limit_initial_cooldown": 5,
     "rate_limit_max_cooldown": 60,
     "max_retries": 3,
+    # Timing settings
+    "page_load_wait": 2.0,
+    "element_interaction_wait": 0.5,
+    "login_wait": 2.0,
+    "captcha_wait": 5.0,
+    "manual_interaction_wait": 1.0,
+    "rating_wait": 1.0,
+    "search_wait": 0.5,
+    "element_wait": 0.5,
 }
 
 
@@ -59,6 +68,17 @@ DIRECTOR_FETCH_LIMIT = 3
 RATE_LIMIT_COOLDOWN_INITIAL = 5
 RATE_LIMIT_COOLDOWN_MAX = 60
 MAX_RETRIES = 3
+
+
+# =============================================================================
+# Timing Constants
+# =============================================================================
+
+PAGE_LOAD_WAIT = 2.0
+ELEMENT_INTERACTION_WAIT = 0.5
+LOGIN_WAIT = 2.0
+CAPTCHA_WAIT = 5.0
+MANUAL_INTERACTION_WAIT = 1.0
 
 
 # =============================================================================
