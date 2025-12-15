@@ -342,7 +342,7 @@ def find_imdb_match(
                 )
 
                 if is_http_error and attempt < MAX_RETRIES - 1:
-                    logger.info(
+                    logger.warning(
                         f"[imdbpy] ⚠️  HTTP error detected, cooling down for {cooldown_seconds}s before retry ({attempt + 1}/{MAX_RETRIES})..."
                     )
                     time.sleep(cooldown_seconds)
